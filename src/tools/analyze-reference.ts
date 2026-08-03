@@ -64,8 +64,10 @@ export async function analyzeReference(
   const notes: string[] = [];
   if (averageShotSeconds < 0.4 && cuts.length > 6) {
     notes.push(
-      "Cut detection likely saturated by heavy camera motion or flash effects — " +
-        "treat the reference as continuous footage and judge the style from the keyframes instead."
+      "Extremely rapid cuts detected. This is either camera motion fooling the detector " +
+        "OR a genuine beat-synced flash montage (common in motivational reels). " +
+        "Check the keyframes: if they show clearly different scenes, it's a real montage — " +
+        "recreate it with short segments using different backgroundStart offsets."
     );
   }
   if (cuts.length === 0) {
