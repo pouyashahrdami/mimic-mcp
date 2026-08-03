@@ -5,3 +5,6 @@ dist/
 
 # analysis output (extracted frames, audio) lands here by default
 .reels-maker/
+
+# personal test materials, never shipped
+video i like/
