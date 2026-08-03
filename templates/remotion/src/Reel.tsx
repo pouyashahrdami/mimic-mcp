@@ -120,7 +120,17 @@ const Caption = ({ segment }: { segment: Segment }) => {
         paddingBottom: isTip ? 220 : 64,
       }}
     >
-      <div style={{ opacity, transform: `translateX(${translateX}px)` }}>
+      {/* full-width wrapper: captionEl's maxWidth must resolve against the
+          frame, not against the text's own fit-content box */}
+      <div
+        style={{
+          opacity,
+          transform: `translateX(${translateX}px)`,
+          width: "100%",
+          display: "flex",
+          justifyContent: "center",
+        }}
+      >
         {captionEl}
       </div>
     </AbsoluteFill>
