@@ -62,6 +62,8 @@ const Caption = ({ segment }: { segment: Segment }) => {
 
   const isTip = segment.captionStyle === "tip";
   const image = "image" in segment ? segment.image : undefined;
+  const color = "captionColor" in segment ? segment.captionColor : undefined;
+  const size = "captionSize" in segment ? segment.captionSize : undefined;
 
   const captionEl = (
     <div
@@ -69,7 +71,10 @@ const Caption = ({ segment }: { segment: Segment }) => {
         color: "white",
         fontFamily: "Helvetica, Arial, sans-serif",
         maxWidth: "90%",
+        whiteSpace: "pre-line",
         ...captionLooks[segment.captionStyle],
+        ...(color ? { color } : {}),
+        ...(size ? { fontSize: size } : {}),
       }}
     >
       {segment.caption}
@@ -122,34 +127,56 @@ const Caption = ({ segment }: { segment: Segment }) => {
   );
 };
 
+const backgroundStyle = (fit: string): CSSProperties => ({
+  width: "100%",
+  height: "100%",
+  objectFit: fit as CSSProperties["objectFit"],
+});
+
 export const Reel = () => {
   const { fps } = useVideoConfig();
 
+  // Any segment with backgroundStart turns the reel into a montage: each
+  // segment shows its own slice of the footage instead of one continuous take.
+  const isMontage = recipe.segments.some(
+    (s) => "backgroundStart" in s && s.backgroundStart != null
+  );
+
   return (
     <AbsoluteFill style={{ backgroundColor: "black" }}>
-      <OffthreadVideo
-        src={staticFile(recipe.background.video)}
-        muted={recipe.background.muted}
-        style={{
-          width: "100%",
-          height: "100%",
-          objectFit: recipe.background.fit as CSSProperties["objectFit"],
-        }}
-      />
+      {!isMontage && (
+        <OffthreadVideo
+          src={staticFile(recipe.background.video)}
+          muted={recipe.background.muted}
+          style={backgroundStyle(recipe.background.fit)}
+        />
+      )}
 
       {recipe.music ? (
         <Audio src={staticFile(recipe.music.file)} volume={recipe.music.volume} />
       ) : null}
 
-      {recipe.segments.map((segment, i) => (
-        <Sequence
-          key={i}
-          from={Math.round(segment.start * fps)}
-          durationInFrames={Math.round((segment.end - segment.start) * fps)}
-        >
-          <Caption segment={segment} />
-        </Sequence>
-      ))}
+      {recipe.segments.map((segment, i) => {
+        const bgStart =
+          "backgroundStart" in segment ? segment.backgroundStart : undefined;
+        return (
+          <Sequence
+            key={i}
+            from={Math.round(segment.start * fps)}
+            durationInFrames={Math.round((segment.end - segment.start) * fps)}
+          >
+            {isMontage && (
+              <OffthreadVideo
+                src={staticFile(recipe.background.video)}
+                muted={recipe.background.muted}
+                startFrom={Math.round((bgStart ?? segment.start) * fps)}
+                style={backgroundStyle(recipe.background.fit)}
+              />
+            )}
+            <Caption segment={segment} />
+          </Sequence>
+        );
+      })}
     </AbsoluteFill>
   );
 };

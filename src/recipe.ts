@@ -19,6 +19,23 @@ export const segmentSchema = z.object({
     .string()
     .optional()
     .describe("Optional image (e.g. a screenshot) shown as a floating card with the caption below it"),
+  backgroundStart: z
+    .number()
+    .min(0)
+    .optional()
+    .describe(
+      "Seconds into the background video where THIS segment's footage starts. " +
+        "Set different offsets per segment to cut a montage out of one long clip."
+    ),
+  captionColor: z
+    .string()
+    .optional()
+    .describe("CSS color overriding the default white caption"),
+  captionSize: z
+    .number()
+    .positive()
+    .optional()
+    .describe("Font size in px overriding the caption style's default"),
   transitionIn: z
     .enum(["cut", "fade", "slide"])
     .default("cut")

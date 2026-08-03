@@ -62,6 +62,12 @@ export async function analyzeReference(
     Math.round((info.durationSeconds / shotCount) * 100) / 100;
 
   const notes: string[] = [];
+  if (averageShotSeconds < 0.4 && cuts.length > 6) {
+    notes.push(
+      "Cut detection likely saturated by heavy camera motion or flash effects — " +
+        "treat the reference as continuous footage and judge the style from the keyframes instead."
+    );
+  }
   if (cuts.length === 0) {
     notes.push(
       "No hard cuts detected — the reference is likely a single continuous shot, or uses only soft transitions."
