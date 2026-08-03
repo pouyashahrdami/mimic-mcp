@@ -6,6 +6,7 @@ import { analyzeReference } from "./tools/analyze-reference.js";
 import { extractMusic } from "./tools/extract-music.js";
 import { scaffoldReel } from "./tools/scaffold-reel.js";
 import { renderReel } from "./tools/render-reel.js";
+import { reviewRender } from "./tools/review-render.js";
 import { reelsMakerPrompt } from "./prompt.js";
 
 const server = new McpServer({ name: "reels-maker", version: "0.1.0" });
@@ -105,6 +106,31 @@ server.registerTool(
   async ({ project_dir }) => {
     try {
       return ok({ output: await renderReel(project_dir) });
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "review_render",
+  {
+    title: "Review rendered reel",
+    description:
+      "Extract one frame per segment from the rendered reel — paired with frames from the same " +
+      "relative position in the reference video, when given — so you can compare them side by side, " +
+      "critique the result, fix recipe.json, and re-render.",
+    inputSchema: {
+      project_dir: z.string().describe("A directory rendered by render_reel"),
+      reference_video: z
+        .string()
+        .optional()
+        .describe("Path to the original reference video, for side-by-side comparison"),
+    },
+  },
+  async ({ project_dir, reference_video }) => {
+    try {
+      return ok(await reviewRender(project_dir, reference_video));
     } catch (err) {
       return fail(err);
     }

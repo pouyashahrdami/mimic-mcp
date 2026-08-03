@@ -43,7 +43,13 @@ Work through these steps in order:
 
 6. Call render_reel on that directory. First render is slow (installs Remotion).
 
-7. Tell the user where the mp4 is, summarize the style choices you copied, and offer
+7. Review your own work: call review_render with the project directory AND the
+   reference video. Open each rendered/reference frame pair and compare like an
+   editor — caption size and position, card placement, pacing, overall look.
+   If something is off, edit recipe.json inside the project and re-render.
+   One or two fix rounds is normal; don't loop forever.
+
+8. Tell the user where the mp4 is, summarize the style choices you copied, and offer
    to adjust timings, caption text, or styles — edits go in the project's recipe.json,
    then re-render.
 
