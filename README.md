@@ -2,6 +2,12 @@
 
 An MCP server that turns "here's my footage, here's my script, make it look like *that* reel" into an actual rendered video.
 
+Your agent can already **see** — this gives it **hands** for making reels. It studies a reel you like frame by frame, clones the style onto your footage, renders it with [Remotion](https://remotion.dev), then critiques its own render against the reference and fixes what's off.
+
+![reference reel next to the generated reel](assets/demo.gif)
+
+*Left: a reel the user liked (someone else's, about API resources). Right: what the agent generated from the user's own footage and a one-line script about AI models — same pacing, same layout, same music.*
+
 You give your AI agent (Claude Code, Codex, or anything that speaks [MCP](https://modelcontextprotocol.io)) three things:
 
 1. **Your footage** — screen recording, b-roll, talking head, whatever you shot.
@@ -16,6 +22,7 @@ The server gives the agent the tools to pull that off:
 | `extract_music` | Rips the audio track out of the reference so the new reel can use the same music. |
 | `scaffold_reel` | Generates a ready-to-edit [Remotion](https://remotion.dev) project from a **style recipe** — a JSON description of the reel (segments, captions, transitions, music) that the agent writes after studying the reference. |
 | `render_reel` | Renders the Remotion project to an mp4. |
+| `review_render` | Extracts one frame per segment from the render, paired with the same relative moment in the reference — so the agent can compare them side by side, catch what's off, and fix its own recipe. |
 
 Plus a `reels-maker` **prompt** that shows up as a slash command in Claude Code (`/mcp__reels-maker__reels-maker`) and walks the agent through the full workflow.
 
@@ -34,7 +41,10 @@ The agent then:
 4. Writes a *style recipe* — your footage as the background, your script as the
    captions, the reference's cut timing and transitions.
 5. Calls `scaffold_reel` to generate the Remotion project, then `render_reel`.
-6. Hands you an mp4.
+6. Calls `review_render` and *looks at its own output* next to the reference:
+   "the reference opens with a text-only hook before the cards — mine doesn't."
+   Fixes the recipe, re-renders. (This catch actually happened in testing.)
+7. Hands you an mp4.
 
 ## Install
 
