@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import {
   AbsoluteFill,
   Audio,
+  Img,
   OffthreadVideo,
   Sequence,
   interpolate,
@@ -60,6 +61,50 @@ const Caption = ({ segment }: { segment: Segment }) => {
   }
 
   const isTip = segment.captionStyle === "tip";
+  const image = "image" in segment ? segment.image : undefined;
+
+  const captionEl = (
+    <div
+      style={{
+        color: "white",
+        fontFamily: "Helvetica, Arial, sans-serif",
+        maxWidth: "90%",
+        ...captionLooks[segment.captionStyle],
+      }}
+    >
+      {segment.caption}
+    </div>
+  );
+
+  // Screenshot-style segment: floating card in the upper-middle band with the
+  // caption directly under it (the classic "resources over b-roll" reel look).
+  if (image) {
+    return (
+      <AbsoluteFill style={{ justifyContent: "center", alignItems: "center", padding: 24 }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 36,
+            maxWidth: "96%",
+            opacity,
+            transform: `translateX(${translateX}px)`,
+          }}
+        >
+          <Img
+            src={staticFile(image)}
+            style={{
+              maxWidth: "100%",
+              borderRadius: 8,
+              boxShadow: "0 16px 56px rgba(0,0,0,0.55)",
+            }}
+          />
+          {captionEl}
+        </div>
+      </AbsoluteFill>
+    );
+  }
 
   return (
     <AbsoluteFill
@@ -70,17 +115,8 @@ const Caption = ({ segment }: { segment: Segment }) => {
         paddingBottom: isTip ? 220 : 64,
       }}
     >
-      <div
-        style={{
-          color: "white",
-          fontFamily: "Helvetica, Arial, sans-serif",
-          maxWidth: "90%",
-          opacity,
-          transform: `translateX(${translateX}px)`,
-          ...captionLooks[segment.captionStyle],
-        }}
-      >
-        {segment.caption}
+      <div style={{ opacity, transform: `translateX(${translateX}px)` }}>
+        {captionEl}
       </div>
     </AbsoluteFill>
   );

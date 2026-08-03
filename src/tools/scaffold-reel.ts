@@ -57,6 +57,18 @@ export async function scaffoldReel(
     localized.music = { ...recipe.music, file: musicName };
   }
 
+  localized.segments = [];
+  for (const segment of recipe.segments) {
+    if (!segment.image) {
+      localized.segments.push(segment);
+      continue;
+    }
+    await assertExists(segment.image, "segment image");
+    const imageName = path.basename(segment.image);
+    await cp(segment.image, path.join(publicDir, imageName));
+    localized.segments.push({ ...segment, image: imageName });
+  }
+
   await writeFile(
     path.join(projectDir, "recipe.json"),
     JSON.stringify(localized, null, 2)

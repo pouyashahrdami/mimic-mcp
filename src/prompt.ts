@@ -32,6 +32,9 @@ Work through these steps in order:
    - captionStyle per segment: "hook" for the opener, "tip" for list-style points,
      "plain" otherwise — pick based on what the reference does
    - transitionIn: match the reference (hard cuts -> "cut", soft -> "fade"/"slide")
+   - image (optional, per segment): if the reference floats screenshots/cards over the
+     footage, gather or capture the equivalent images for the user's topic and set the
+     path here — the caption renders directly below the card, like those reels do
    - music = the extracted soundtrack, unless the user said otherwise
    - output dimensions 1080x1920 @ 30fps unless the reference clearly differs
    - durationSeconds: long enough for all segments, no longer than the music needs

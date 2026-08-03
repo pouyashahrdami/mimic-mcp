@@ -15,6 +15,10 @@ export const segmentSchema = z.object({
     .enum(["hook", "tip", "plain"])
     .default("plain")
     .describe("hook = big center statement, tip = card near the bottom, plain = simple centered text"),
+  image: z
+    .string()
+    .optional()
+    .describe("Optional image (e.g. a screenshot) shown as a floating card with the caption below it"),
   transitionIn: z
     .enum(["cut", "fade", "slide"])
     .default("cut")

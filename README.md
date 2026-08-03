@@ -81,7 +81,8 @@ The recipe is the contract between "agent understands the reference" and "code r
       "start": 0, "end": 2.1,
       "caption": "3 tools that changed how I code",
       "captionStyle": "hook",          // hook | tip | plain
-      "transitionIn": "cut"            // cut | fade | slide
+      "transitionIn": "cut",           // cut | fade | slide
+      "image": "/path/to/screenshot.png"  // optional: floating card above the caption
     }
     // ... one segment per shot, timed like the reference
   ]
