@@ -43,6 +43,29 @@ export const segmentSchema = z.object({
         "Use when cover-cropping cuts off the subject — a portrait clip in a " +
         "landscape frame crops to its middle unless you aim it."
     ),
+  zoom: z
+    .object({
+      from: z.number().positive().default(1).describe("Starting scale (1 = no zoom)"),
+      to: z.number().positive().default(1.3).describe("Ending scale (>1 = punch in, <from = pull out)"),
+      focusX: z
+        .number()
+        .min(0)
+        .max(1)
+        .default(0.5)
+        .describe("Horizontal focal point to zoom toward, 0=left … 1=right"),
+      focusY: z
+        .number()
+        .min(0)
+        .max(1)
+        .default(0.5)
+        .describe("Vertical focal point to zoom toward, 0=top … 1=bottom"),
+    })
+    .optional()
+    .describe(
+      "Animated Ken-Burns / punch-in zoom on THIS segment's background over its duration. " +
+        "The classic screen-recording move: zoom into the part of the screen that matters " +
+        "(set focusX/focusY to the active region). Each zoomed segment gets its own background layer."
+    ),
   captionColor: z
     .string()
     .optional()

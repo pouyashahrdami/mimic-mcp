@@ -232,16 +232,67 @@ const backgroundStyle = (fit: string, position?: string): CSSProperties => ({
   ...(position ? { objectPosition: position } : {}),
 });
 
+type Zoom = { from: number; to: number; focusX: number; focusY: number };
+
+// One segment's background clip, optionally punched-in with an animated zoom.
+// The scale ramps from zoom.from to zoom.to across the segment, anchored at the
+// focal point so the interesting region stays framed — the screen-recording move.
+const SegmentBackground = ({
+  src,
+  fit,
+  muted,
+  startFrom,
+  position,
+  zoom,
+  durationInFrames,
+}: {
+  src: string;
+  fit: string;
+  muted: boolean;
+  startFrom: number;
+  position?: string;
+  zoom?: Zoom;
+  durationInFrames: number;
+}) => {
+  const frame = useCurrentFrame();
+  const video = (
+    <OffthreadVideo
+      src={staticFile(src)}
+      muted={muted}
+      startFrom={startFrom}
+      style={backgroundStyle(fit, position)}
+    />
+  );
+
+  if (!zoom) return video;
+
+  const scale = interpolate(frame, [0, durationInFrames], [zoom.from, zoom.to], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  return (
+    <AbsoluteFill
+      style={{
+        transform: `scale(${scale})`,
+        transformOrigin: `${zoom.focusX * 100}% ${zoom.focusY * 100}%`,
+      }}
+    >
+      {video}
+    </AbsoluteFill>
+  );
+};
+
 export const Reel = () => {
   const { fps } = useVideoConfig();
 
-  // Any segment with backgroundStart or its own backgroundVideo turns the reel
-  // into a montage: each segment shows its own slice/source instead of one
-  // continuous take.
+  // Any segment with backgroundStart, its own backgroundVideo, or a zoom turns
+  // the reel into a montage: each segment shows its own slice/source (and can be
+  // independently zoomed) instead of one continuous take.
   const isMontage = recipe.segments.some(
     (s) =>
       ("backgroundStart" in s && s.backgroundStart != null) ||
-      ("backgroundVideo" in s && s.backgroundVideo != null)
+      ("backgroundVideo" in s && s.backgroundVideo != null) ||
+      ("zoom" in s && s.zoom != null)
   );
 
   return (
@@ -265,24 +316,26 @@ export const Reel = () => {
           "backgroundVideo" in segment ? segment.backgroundVideo : undefined;
         const bgPosition =
           "backgroundPosition" in segment ? segment.backgroundPosition : undefined;
+        const zoom = ("zoom" in segment ? segment.zoom : undefined) as Zoom | undefined;
+        const durationInFrames = Math.round((segment.end - segment.start) * fps);
         return (
           <Sequence
             key={i}
             from={Math.round(segment.start * fps)}
-            durationInFrames={Math.round((segment.end - segment.start) * fps)}
+            durationInFrames={durationInFrames}
           >
             {isMontage && (
-              <OffthreadVideo
-                src={staticFile(bgVideo ?? recipe.background.video)}
+              <SegmentBackground
+                src={bgVideo ?? recipe.background.video}
+                fit={recipe.background.fit}
                 muted={recipe.background.muted}
                 startFrom={Math.round((bgStart ?? segment.start) * fps)}
-                style={backgroundStyle(recipe.background.fit, bgPosition)}
+                position={bgPosition}
+                zoom={zoom}
+                durationInFrames={durationInFrames}
               />
             )}
-            <Caption
-              segment={segment}
-              durationInFrames={Math.round((segment.end - segment.start) * fps)}
-            />
+            <Caption segment={segment} durationInFrames={durationInFrames} />
           </Sequence>
         );
       })}
