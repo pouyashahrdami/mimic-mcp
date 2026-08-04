@@ -100,12 +100,23 @@ server.registerTool(
   {
     title: "Render reel",
     description:
-      "Render a scaffolded project to out/reel.mp4. Slow on first run (installs Remotion + headless Chromium).",
-    inputSchema: { project_dir: z.string().describe("A directory created by scaffold_reel") },
+      "Render a scaffolded project to mp4. Slow on first run (installs Remotion + headless Chromium). " +
+      "Pass quality:'draft' for a fast half-resolution preview while iterating on the recipe, " +
+      "then quality:'final' (the default) for the deliverable.",
+    inputSchema: {
+      project_dir: z.string().describe("A directory created by scaffold_reel"),
+      quality: z
+        .enum(["draft", "final"])
+        .default("final")
+        .describe(
+          "draft = half-resolution, fast encode to out/reel-draft.mp4 for quick review loops. " +
+            "final = full-quality deliverable to out/reel.mp4."
+        ),
+    },
   },
-  async ({ project_dir }) => {
+  async ({ project_dir, quality }) => {
     try {
-      return ok({ output: await renderReel(project_dir) });
+      return ok({ output: await renderReel(project_dir, quality) });
     } catch (err) {
       return fail(err);
     }
