@@ -77,7 +77,10 @@ const CaptionText = ({
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const animation = "captionAnimation" in segment ? segment.captionAnimation : "none";
-  const wordTimings = "wordTimings" in segment ? segment.wordTimings : undefined;
+  // recipe.json's inferred type is per-project; cast the optional timing array.
+  const wordTimings = ("wordTimings" in segment ? segment.wordTimings : undefined) as
+    | number[]
+    | undefined;
 
   if (animation === "karaoke") {
     const highlight =
@@ -222,10 +225,11 @@ const Caption = ({
   );
 };
 
-const backgroundStyle = (fit: string): CSSProperties => ({
+const backgroundStyle = (fit: string, position?: string): CSSProperties => ({
   width: "100%",
   height: "100%",
   objectFit: fit as CSSProperties["objectFit"],
+  ...(position ? { objectPosition: position } : {}),
 });
 
 export const Reel = () => {
