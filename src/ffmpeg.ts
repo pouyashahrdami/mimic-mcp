@@ -87,6 +87,89 @@ export async function detectSceneCuts(
   return cuts;
 }
 
+export interface BeatAnalysis {
+  /** Onset (beat/hit) timestamps in seconds. */
+  beats: number[];
+  /** Estimated tempo from the median gap between onsets, or null if too few. */
+  bpm: number | null;
+}
+
+/**
+ * Estimate musical onsets ("beats") by tracking short-window RMS energy and
+ * flagging the moments energy jumps — percussive hits, downbeats, drops. This
+ * is a transient/onset detector, not a full tempo tracker, but it's enough for
+ * an agent to snap segment cuts onto the beat. Pure ffmpeg, no extra deps.
+ *
+ * `windowSeconds` sets the time resolution; `riseDb` is how much louder a window
+ * must be than the previous to count as an onset.
+ */
+export async function detectBeats(
+  videoPath: string,
+  windowSeconds = 0.046,
+  riseDb = 3
+): Promise<BeatAnalysis> {
+  // asetnsamples can't take seconds, so convert the window to a sample count at
+  // a fixed rate we also force with aresample.
+  const sampleRate = 22050;
+  const nSamples = Math.max(1, Math.round(windowSeconds * sampleRate));
+
+  const { stderr } = await exec("ffmpeg", [
+    "-i", videoPath,
+    "-vn",
+    "-af",
+    `aresample=${sampleRate},asetnsamples=n=${nSamples}:p=0,` +
+      `astats=metadata=1:reset=1,` +
+      `ametadata=print:key=lavfi.astats.Overall.RMS_level`,
+    "-f", "null",
+    "-",
+  ]);
+
+  // ametadata prints a `pts_time:<t>` line, then a `lavfi.astats.Overall.RMS_level=<db>`
+  // line per window. Pair them up into (time, energy) samples.
+  const times: number[] = [];
+  const levels: number[] = [];
+  let pendingTime: number | null = null;
+  for (const line of stderr.split("\n")) {
+    const timeMatch = line.match(/pts_time:([\d.]+)/);
+    if (timeMatch) {
+      pendingTime = Number(timeMatch[1]);
+      continue;
+    }
+    const rmsMatch = line.match(/RMS_level=(-?[\d.]+|-inf)/);
+    if (rmsMatch && pendingTime != null) {
+      // Silence reports as "-inf"; floor it so flux math stays finite.
+      const db = rmsMatch[1] === "-inf" ? -120 : Number(rmsMatch[1]);
+      times.push(pendingTime);
+      levels.push(db);
+      pendingTime = null;
+    }
+  }
+
+  // An onset = a window whose energy rose by >= riseDb over the previous one and
+  // is a local peak of that rise (so a single hit yields one beat, not a run).
+  const beats: number[] = [];
+  for (let i = 1; i < levels.length; i++) {
+    const rise = levels[i] - levels[i - 1];
+    const nextRise = i + 1 < levels.length ? levels[i + 1] - levels[i] : 0;
+    if (rise >= riseDb && rise >= nextRise) {
+      beats.push(Math.round(times[i] * 100) / 100);
+    }
+  }
+
+  // Estimate tempo from the median inter-onset interval (robust to outliers).
+  let bpm: number | null = null;
+  if (beats.length >= 4) {
+    const gaps = beats.slice(1).map((b, i) => b - beats[i]).filter((g) => g > 0.1);
+    if (gaps.length) {
+      gaps.sort((a, b) => a - b);
+      const medianGap = gaps[Math.floor(gaps.length / 2)];
+      bpm = Math.round(60 / medianGap);
+    }
+  }
+
+  return { beats, bpm };
+}
+
 export async function extractFrame(
   videoPath: string,
   atSeconds: number,

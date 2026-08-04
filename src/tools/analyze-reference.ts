@@ -1,6 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import { detectSceneCuts, extractFrame, probe } from "../ffmpeg.js";
+import { detectBeats, detectSceneCuts, extractFrame, probe } from "../ffmpeg.js";
 
 // More frames than this stops being "study the style" and starts being noise.
 const MAX_KEYFRAMES = 12;
@@ -14,6 +14,8 @@ export interface ReferenceAnalysis {
   hasAudio: boolean;
   sceneCuts: number[];
   averageShotSeconds: number;
+  beats: number[];
+  bpm: number | null;
   keyframes: { atSeconds: number; file: string }[];
   notes: string[];
 }
@@ -29,6 +31,9 @@ export async function analyzeReference(
 ): Promise<ReferenceAnalysis> {
   const info = await probe(videoPath);
   const cuts = await detectSceneCuts(videoPath);
+  const { beats, bpm } = info.hasAudio
+    ? await detectBeats(videoPath)
+    : { beats: [], bpm: null };
 
   const outDir = path.join(
     workDir,
@@ -78,6 +83,13 @@ export async function analyzeReference(
   if (!info.hasAudio) {
     notes.push("Reference has no audio track, so extract_music will fail on it.");
   }
+  if (beats.length >= 4) {
+    notes.push(
+      `Detected ${beats.length} musical onsets${bpm ? ` (~${bpm} BPM)` : ""}. ` +
+        "For a beat-synced feel, align your segment start/end times to the `beats` timestamps " +
+        "rather than spacing cuts evenly."
+    );
+  }
 
   return {
     video: videoPath,
@@ -88,6 +100,8 @@ export async function analyzeReference(
     hasAudio: info.hasAudio,
     sceneCuts: cuts.map((c) => Math.round(c * 100) / 100),
     averageShotSeconds,
+    beats,
+    bpm,
     keyframes,
     notes,
   };
