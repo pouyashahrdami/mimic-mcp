@@ -12,6 +12,21 @@ const TEMPLATE_DIR = path.join(
   "remotion"
 );
 
+// dist/tools/scaffold-reel.js -> ../../assets/sfx (shipped, synthesized effects)
+const SFX_DIR = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "assets",
+  "sfx"
+);
+const BUILTIN_SFX = new Set(["pop", "click", "whoosh", "riser"]);
+
+/** Resolve a segment.sound value to a real file path (built-in name or custom path). */
+function resolveSound(sound: string): string {
+  return BUILTIN_SFX.has(sound) ? path.join(SFX_DIR, `${sound}.wav`) : sound;
+}
+
 async function assertExists(file: string, what: string) {
   try {
     await access(file);
@@ -71,6 +86,13 @@ export async function scaffoldReel(
       const videoName = path.basename(segment.backgroundVideo);
       await cp(segment.backgroundVideo, path.join(publicDir, videoName));
       local.backgroundVideo = videoName;
+    }
+    if (segment.sound) {
+      const soundPath = resolveSound(segment.sound);
+      await assertExists(soundPath, "segment sound effect");
+      const soundName = path.basename(soundPath);
+      await cp(soundPath, path.join(publicDir, soundName));
+      local.sound = soundName;
     }
     localized.segments.push(local);
   }

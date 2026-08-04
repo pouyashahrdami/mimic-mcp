@@ -317,6 +317,9 @@ export const Reel = () => {
         const bgPosition =
           "backgroundPosition" in segment ? segment.backgroundPosition : undefined;
         const zoom = ("zoom" in segment ? segment.zoom : undefined) as Zoom | undefined;
+        const sound = "sound" in segment ? segment.sound : undefined;
+        const soundVolume =
+          ("soundVolume" in segment ? segment.soundVolume : undefined) ?? 0.7;
         const durationInFrames = Math.round((segment.end - segment.start) * fps);
         return (
           <Sequence
@@ -335,6 +338,7 @@ export const Reel = () => {
                 durationInFrames={durationInFrames}
               />
             )}
+            {sound ? <Audio src={staticFile(sound)} volume={soundVolume} /> : null}
             <Caption segment={segment} durationInFrames={durationInFrames} />
           </Sequence>
         );

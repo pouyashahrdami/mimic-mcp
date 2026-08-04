@@ -11,7 +11,8 @@
   "files": [
     "dist",
     "templates",
-    "presets"
+    "presets",
+    "assets/sfx"
   ],
   "scripts": {
     "build": "tsc",

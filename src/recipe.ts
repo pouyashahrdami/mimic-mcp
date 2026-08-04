@@ -79,6 +79,20 @@ export const segmentSchema = z.object({
     .enum(["cut", "fade", "slide"])
     .default("cut")
     .describe("How this segment's caption enters"),
+  sound: z
+    .string()
+    .optional()
+    .describe(
+      "Sound effect to play as this segment begins. Either a built-in name " +
+        "(\"pop\", \"click\", \"whoosh\", \"riser\") or an absolute path to your own short audio file. " +
+        "Punctuates cuts and transitions the way real reels do."
+    ),
+  soundVolume: z
+    .number()
+    .min(0)
+    .max(1)
+    .optional()
+    .describe("Volume for this segment's sound effect (0..1). Default 0.7."),
   captionAnimation: z
     .enum(["none", "karaoke", "typewriter"])
     .default("none")
