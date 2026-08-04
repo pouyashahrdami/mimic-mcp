@@ -7,6 +7,7 @@ import { extractMusic } from "./tools/extract-music.js";
 import { trimSilenceTool } from "./tools/trim-silence.js";
 import { exportVariants } from "./tools/export-variants.js";
 import { listPresets, getPreset, savePreset } from "./presets.js";
+import { transcribeReference } from "./tools/transcribe-reference.js";
 import { scaffoldReel } from "./tools/scaffold-reel.js";
 import { renderReel } from "./tools/render-reel.js";
 import { reviewRender } from "./tools/review-render.js";
@@ -53,6 +54,32 @@ server.registerTool(
   async ({ video }) => {
     try {
       return ok(await analyzeReference(video, workDir));
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "transcribe_reference",
+  {
+    title: "Transcribe reference reel",
+    description:
+      "Transcribe the reference's spoken audio with word-level timings, so you can see its script " +
+      "structure (hook → build → payoff), not just its visuals. Each segment's wordTimings are " +
+      "segment-relative and drop straight into a karaoke caption. Requires a local whisper CLI " +
+      "(e.g. `uv tool install whisper-ctranslate2`).",
+    inputSchema: {
+      video: z.string().describe("Absolute path to the reference video"),
+      model: z
+        .string()
+        .optional()
+        .describe("Whisper model size: tiny/base (fast) … small/medium (sharper). Default base."),
+    },
+  },
+  async ({ video, model }) => {
+    try {
+      return ok(await transcribeReference(video, model));
     } catch (err) {
       return fail(err);
     }
