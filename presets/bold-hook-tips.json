@@ -1,0 +1,13 @@
+{
+  "name": "bold-hook-tips",
+  "description": "Punchy hook opener then a run of karaoke-highlighted tip cards. The classic advice/listicle reel — big center hook, then bottom cards revealed word-by-word.",
+  "output": { "width": 1080, "height": 1920, "fps": 30 },
+  "musicVolume": 0.85,
+  "segments": [
+    { "durationSeconds": 2.2, "captionStyle": "hook", "captionAnimation": "karaoke", "highlightColor": "#ffe000", "transitionIn": "cut" },
+    { "durationSeconds": 2, "captionStyle": "tip", "captionAnimation": "karaoke", "highlightColor": "#ffe000", "transitionIn": "cut" },
+    { "durationSeconds": 2, "captionStyle": "tip", "captionAnimation": "karaoke", "highlightColor": "#ffe000", "transitionIn": "cut" },
+    { "durationSeconds": 2, "captionStyle": "tip", "captionAnimation": "karaoke", "highlightColor": "#ffe000", "transitionIn": "cut" },
+    { "durationSeconds": 2, "captionStyle": "tip", "captionAnimation": "karaoke", "highlightColor": "#ffe000", "transitionIn": "cut" }
+  ]
+}

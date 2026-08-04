@@ -10,7 +10,8 @@
   },
   "files": [
     "dist",
-    "templates"
+    "templates",
+    "presets"
   ],
   "scripts": {
     "build": "tsc",

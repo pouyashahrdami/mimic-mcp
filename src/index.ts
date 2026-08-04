@@ -6,6 +6,7 @@ import { analyzeReference } from "./tools/analyze-reference.js";
 import { extractMusic } from "./tools/extract-music.js";
 import { trimSilenceTool } from "./tools/trim-silence.js";
 import { exportVariants } from "./tools/export-variants.js";
+import { listPresets, getPreset, savePreset } from "./presets.js";
 import { scaffoldReel } from "./tools/scaffold-reel.js";
 import { renderReel } from "./tools/render-reel.js";
 import { reviewRender } from "./tools/review-render.js";
@@ -207,6 +208,65 @@ server.registerTool(
   async ({ video, formats, mode }) => {
     try {
       return ok(await exportVariants(video, formats, mode));
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "list_presets",
+  {
+    title: "List style presets",
+    description:
+      "List available reel style presets — shipped built-ins plus any you've saved. A preset is a " +
+      "reusable look (caption styles, animations, transitions, zoom, timing) with no content. " +
+      "Use get_preset to fetch one and fill it with your footage and script.",
+    inputSchema: {},
+  },
+  async () => {
+    try {
+      return ok(await listPresets(workDir));
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "get_preset",
+  {
+    title: "Get style preset",
+    description:
+      "Fetch a preset's full style skeleton by name. Use it as the template for a new recipe: keep " +
+      "its segment styles/timing, add your background.video, music, and caption text per segment.",
+    inputSchema: { name: z.string().describe("Preset name from list_presets") },
+  },
+  async ({ name }) => {
+    try {
+      return ok(await getPreset(workDir, name));
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "save_preset",
+  {
+    title: "Save style preset",
+    description:
+      "Extract the reusable style from a recipe (dropping footage paths, caption text and music) and " +
+      "save it as a named preset you can reapply to future reels. Great after you nail a look.",
+    inputSchema: {
+      recipe_json: z.string().describe("The recipe whose style you want to keep, as a JSON string"),
+      name: z.string().describe("Short name for the preset, e.g. \"my-listicle\""),
+      description: z.string().describe("One line describing the look, for list_presets"),
+    },
+  },
+  async ({ recipe_json, name, description }) => {
+    try {
+      return ok(await savePreset(recipe_json, name, description, workDir));
     } catch (err) {
       return fail(err);
     }

@@ -1,0 +1,12 @@
+{
+  "name": "clean-statement",
+  "description": "Minimal motivational statement reel: a few full-screen lines over b-roll, each fading in, no cards or clutter. Lets the footage and the words carry it.",
+  "output": { "width": 1080, "height": 1920, "fps": 30 },
+  "musicVolume": 0.9,
+  "segments": [
+    { "durationSeconds": 2.5, "captionStyle": "hook", "transitionIn": "fade" },
+    { "durationSeconds": 2.5, "captionStyle": "plain", "transitionIn": "fade" },
+    { "durationSeconds": 2.5, "captionStyle": "plain", "transitionIn": "fade" },
+    { "durationSeconds": 2.5, "captionStyle": "hook", "transitionIn": "fade" }
+  ]
+}

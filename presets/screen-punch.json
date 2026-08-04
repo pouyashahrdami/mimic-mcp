@@ -1,0 +1,12 @@
+{
+  "name": "screen-punch",
+  "description": "Screen-recording walkthrough with punch-in zooms. Each segment pushes into the active region while a plain caption narrates the step — the Screen Studio / dev-demo look.",
+  "output": { "width": 1080, "height": 1920, "fps": 30 },
+  "musicVolume": 0.6,
+  "segments": [
+    { "durationSeconds": 2.5, "captionStyle": "hook", "captionAnimation": "typewriter", "transitionIn": "fade" },
+    { "durationSeconds": 3, "captionStyle": "plain", "transitionIn": "fade", "zoom": { "from": 1, "to": 1.35, "focusX": 0.5, "focusY": 0.4 } },
+    { "durationSeconds": 3, "captionStyle": "plain", "transitionIn": "fade", "zoom": { "from": 1.1, "to": 1.45, "focusX": 0.5, "focusY": 0.55 } },
+    { "durationSeconds": 3, "captionStyle": "plain", "transitionIn": "fade", "zoom": { "from": 1, "to": 1.3, "focusX": 0.5, "focusY": 0.5 } }
+  ]
+}
