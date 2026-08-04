@@ -170,6 +170,103 @@ export async function detectBeats(
   return { beats, bpm };
 }
 
+export interface SilenceTrimResult {
+  outPath: string;
+  originalSeconds: number;
+  trimmedSeconds: number;
+  removedSeconds: number;
+  cutsRemoved: number;
+}
+
+/**
+ * Remove silent gaps from a video, concatenating the spoken parts into a
+ * jump-cut edit — the tedious pass every talking-head creator does by hand.
+ *
+ * `thresholdDb` is the loudness below which audio counts as silence (-30 is a
+ * good default for speech); `minSilenceSeconds` is how long a gap must be before
+ * it's cut, and `padSeconds` leaves a little breathing room around each kept
+ * chunk so words aren't clipped.
+ */
+export async function trimSilence(
+  videoPath: string,
+  outPath: string,
+  thresholdDb = -30,
+  minSilenceSeconds = 0.5,
+  padSeconds = 0.05
+): Promise<SilenceTrimResult> {
+  const info = await probe(videoPath);
+  if (!info.hasAudio) {
+    throw new Error("Video has no audio track, so there's no silence to detect.");
+  }
+
+  // silencedetect prints silence_start / silence_end|silence_duration to stderr.
+  const { stderr } = await exec("ffmpeg", [
+    "-i", videoPath,
+    "-af", `silencedetect=noise=${thresholdDb}dB:d=${minSilenceSeconds}`,
+    "-f", "null",
+    "-",
+  ]);
+
+  const starts: number[] = [];
+  const ends: number[] = [];
+  for (const m of stderr.matchAll(/silence_start:\s*([\d.]+)/g)) starts.push(Number(m[1]));
+  for (const m of stderr.matchAll(/silence_end:\s*([\d.]+)/g)) ends.push(Number(m[1]));
+
+  // Invert the silent ranges into the spoken ranges we want to keep.
+  const keep: { start: number; end: number }[] = [];
+  let cursor = 0;
+  for (let i = 0; i < starts.length; i++) {
+    const sStart = starts[i];
+    const sEnd = ends[i] ?? info.durationSeconds;
+    if (sStart - cursor > 0.01) {
+      keep.push({ start: Math.max(0, cursor - padSeconds), end: sStart + padSeconds });
+    }
+    cursor = sEnd;
+  }
+  if (info.durationSeconds - cursor > 0.01) {
+    keep.push({ start: Math.max(0, cursor - padSeconds), end: info.durationSeconds });
+  }
+
+  if (keep.length === 0) {
+    throw new Error("The whole clip registered as silence — try a lower thresholdDb.");
+  }
+
+  // Build a filter_complex that trims each kept range from video+audio and
+  // concatenates the pieces back into one continuous clip.
+  const parts: string[] = [];
+  const concatIn: string[] = [];
+  keep.forEach((k, i) => {
+    parts.push(
+      `[0:v]trim=start=${k.start.toFixed(3)}:end=${k.end.toFixed(3)},setpts=PTS-STARTPTS[v${i}];` +
+        `[0:a]atrim=start=${k.start.toFixed(3)}:end=${k.end.toFixed(3)},asetpts=PTS-STARTPTS[a${i}]`
+    );
+    concatIn.push(`[v${i}][a${i}]`);
+  });
+  const filter =
+    parts.join(";") +
+    ";" +
+    concatIn.join("") +
+    `concat=n=${keep.length}:v=1:a=1[outv][outa]`;
+
+  await exec("ffmpeg", [
+    "-y",
+    "-i", videoPath,
+    "-filter_complex", filter,
+    "-map", "[outv]",
+    "-map", "[outa]",
+    outPath,
+  ]);
+
+  const trimmed = await probe(outPath);
+  return {
+    outPath,
+    originalSeconds: Math.round(info.durationSeconds * 100) / 100,
+    trimmedSeconds: Math.round(trimmed.durationSeconds * 100) / 100,
+    removedSeconds: Math.round((info.durationSeconds - trimmed.durationSeconds) * 100) / 100,
+    cutsRemoved: starts.length,
+  };
+}
+
 export async function extractFrame(
   videoPath: string,
   atSeconds: number,

@@ -4,6 +4,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { analyzeReference } from "./tools/analyze-reference.js";
 import { extractMusic } from "./tools/extract-music.js";
+import { trimSilenceTool } from "./tools/trim-silence.js";
 import { scaffoldReel } from "./tools/scaffold-reel.js";
 import { renderReel } from "./tools/render-reel.js";
 import { reviewRender } from "./tools/review-render.js";
@@ -67,6 +68,40 @@ server.registerTool(
   async ({ video }) => {
     try {
       return ok({ musicFile: await extractMusic(video, workDir) });
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "trim_silence",
+  {
+    title: "Trim silence (jump-cut)",
+    description:
+      "Cut the silent gaps out of talking-head footage, concatenating the spoken parts into a " +
+      "tighter jump-cut clip. Run this on raw footage first, then use the returned path as " +
+      "background.video. Returns how much was removed.",
+    inputSchema: {
+      video: z.string().describe("Absolute path to the footage to tighten"),
+      threshold_db: z
+        .number()
+        .optional()
+        .describe("Loudness (dBFS) below which audio is silence. Default -30; lower = stricter."),
+      min_silence_seconds: z
+        .number()
+        .optional()
+        .describe("Minimum gap length to cut, in seconds. Default 0.5."),
+    },
+  },
+  async ({ video, threshold_db, min_silence_seconds }) => {
+    try {
+      return ok(
+        await trimSilenceTool(video, workDir, {
+          thresholdDb: threshold_db,
+          minSilenceSeconds: min_silence_seconds,
+        })
+      );
     } catch (err) {
       return fail(err);
     }
