@@ -16,13 +16,36 @@ You give your AI agent (Claude Code, Codex, or anything that speaks [MCP](https:
 
 The server gives the agent the tools to pull that off:
 
+**Study the reference**
+
 | Tool | What it does |
 |------|--------------|
-| `analyze_reference` | Probes the reference video: duration, resolution, fps, scene cuts, average shot length, and extracts keyframes at every cut so the agent can *look* at the style. |
+| `analyze_reference` | Probes the reference video: duration, resolution, fps, scene cuts, average shot length, and **musical beat/onset timestamps (with a BPM estimate)** so cuts can land on the beat. Extracts keyframes at every cut so the agent can *look* at the style. |
+| `transcribe_reference` | Transcribes the reference's spoken audio with **word-level timings**, so the agent sees its *script structure* (hook → build → payoff), not just its visuals. Word timings drop straight into karaoke captions. Needs a local whisper CLI. |
 | `extract_music` | Rips the audio track out of the reference so the new reel can use the same music. |
-| `scaffold_reel` | Generates a ready-to-edit [Remotion](https://remotion.dev) project from a **style recipe** — a JSON description of the reel (segments, captions, transitions, music) that the agent writes after studying the reference. |
-| `render_reel` | Renders the Remotion project to an mp4. |
+
+**Prep your footage**
+
+| Tool | What it does |
+|------|--------------|
+| `trim_silence` | Cuts the silent gaps out of talking-head footage, concatenating the spoken parts into a tighter jump-cut clip — the tedious pass, automated. |
+| `generate_voiceover` | Turns a script into a spoken voiceover track using the built-in macOS voice (no API key). Transcribe it for word-synced karaoke captions. macOS only. |
+
+**Build & render**
+
+| Tool | What it does |
+|------|--------------|
+| `scaffold_reel` | Generates a ready-to-edit [Remotion](https://remotion.dev) project from a **style recipe** — a JSON description of the reel (segments, captions, animations, transitions, zoom, sound, music) that the agent writes after studying the reference. |
+| `render_reel` | Renders the Remotion project to an mp4. Pass `quality: "draft"` for a fast half-resolution preview while iterating, `"final"` for the deliverable. |
 | `review_render` | Extracts one frame per segment from the render, paired with the same relative moment in the reference — so the agent can compare them side by side, catch what's off, and fix its own recipe. |
+| `export_variants` | Re-frames the finished reel into other aspect ratios (9:16, 1:1, 4:5, 16:9) for cross-posting — center-crop or blur-padded. |
+
+**Reusable styles**
+
+| Tool | What it does |
+|------|--------------|
+| `list_presets` / `get_preset` | Browse and fetch style presets — shipped built-ins plus your own — a reusable look (caption styles, animations, transitions, zoom, timing) with no content. |
+| `save_preset` | Capture the style of a recipe you nailed (dropping footage, text and music) as a named preset to reapply to future reels. |
 
 Plus a `reels-maker` **prompt** that shows up as a slash command in Claude Code (`/mcp__reels-maker__reels-maker`) and walks the agent through the full workflow.
 
@@ -49,6 +72,8 @@ The agent then:
 ## Install
 
 Requires: **Node 18+** and **ffmpeg/ffprobe** on your PATH (`brew install ffmpeg`).
+
+Optional: a local **whisper CLI** for `transcribe_reference` (`uv tool install whisper-ctranslate2` — light, no torch, or `pip install openai-whisper`). `generate_voiceover` uses macOS's built-in `say`, so it's macOS-only; every other tool is cross-platform.
 
 ```bash
 git clone https://github.com/pouyashahrdami/reels-maker
@@ -92,6 +117,13 @@ The recipe is the contract between "agent understands the reference" and "code r
       "caption": "3 tools that changed how I code",
       "captionStyle": "hook",          // hook | tip | plain
       "transitionIn": "cut",           // cut | fade | slide
+      "captionAnimation": "karaoke",   // none | karaoke | typewriter
+      "highlightColor": "#ffe000",     // active-word color for karaoke
+      "wordTimings": [0, 0.4, 0.7],    // optional per-word times (from transcribe_reference)
+      "sound": "whoosh",               // pop | click | whoosh | riser, or a path
+      "zoom": { "from": 1, "to": 1.3, "focusX": 0.5, "focusY": 0.4 }, // Ken-Burns punch-in
+      "backgroundVideo": "/path/to/clip-2.mov",  // optional: this segment's own clip (montage)
+      "backgroundStart": 4.0,          // optional: seconds into the clip to start
       "image": "/path/to/screenshot.png"  // optional: floating card above the caption
     }
     // ... one segment per shot, timed like the reference
@@ -99,11 +131,11 @@ The recipe is the contract between "agent understands the reference" and "code r
 }
 ```
 
-`scaffold_reel` validates the recipe and generates a Remotion project you (or the agent) can still tweak by hand before rendering.
+Every field past `caption`/`captionStyle` is optional — a minimal segment is just start/end/caption. `scaffold_reel` validates the recipe and generates a Remotion project you (or the agent) can still tweak by hand before rendering.
 
 ## Status
 
-Early. The core loop works: analyze → recipe → scaffold → render. Style coverage (transition types, caption animations) grows as real reference reels hit it. Issues and PRs welcome.
+The core loop works end to end: analyze → recipe → scaffold → render → self-review. Style coverage is broad — karaoke/typewriter caption animations, Ken-Burns zoom punch-ins, multi-clip montages, beat detection, transition sound effects, aspect-ratio exports, reusable style presets, silence trimming, transcription and voiceover. Growing as real reference reels hit it. Issues and PRs welcome — the `presets/` folder is an easy first contribution.
 
 ## License
 
