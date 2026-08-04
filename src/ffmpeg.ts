@@ -64,6 +64,17 @@ export async function probe(videoPath: string): Promise<VideoInfo> {
   };
 }
 
+/** Duration (seconds) of any media file, including audio-only ones. */
+export async function mediaDuration(mediaPath: string): Promise<number> {
+  const { stdout } = await exec("ffprobe", [
+    "-v", "error",
+    "-show_entries", "format=duration",
+    "-of", "default=noprint_wrappers=1:nokey=1",
+    mediaPath,
+  ]);
+  return Number(String(stdout).trim());
+}
+
 /**
  * Detect hard cuts by scoring frame-to-frame difference. Returns timestamps
  * (seconds) where a new shot starts. `threshold` is ffmpeg's scene score

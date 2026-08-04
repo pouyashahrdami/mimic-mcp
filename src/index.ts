@@ -8,6 +8,7 @@ import { trimSilenceTool } from "./tools/trim-silence.js";
 import { exportVariants } from "./tools/export-variants.js";
 import { listPresets, getPreset, savePreset } from "./presets.js";
 import { transcribeReference } from "./tools/transcribe-reference.js";
+import { generateVoiceover } from "./tools/generate-voiceover.js";
 import { scaffoldReel } from "./tools/scaffold-reel.js";
 import { renderReel } from "./tools/render-reel.js";
 import { reviewRender } from "./tools/review-render.js";
@@ -54,6 +55,35 @@ server.registerTool(
   async ({ video }) => {
     try {
       return ok(await analyzeReference(video, workDir));
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "generate_voiceover",
+  {
+    title: "Generate voiceover",
+    description:
+      "Turn a script into a spoken voiceover audio track using the built-in macOS voice (no API key). " +
+      "Use the returned file as the recipe's audio track; transcribe it for karaoke word timings. " +
+      "macOS only.",
+    inputSchema: {
+      script: z.string().describe("The narration text, or a path to a .txt/.md file"),
+      voice: z
+        .string()
+        .optional()
+        .describe("System voice name, e.g. \"Samantha\" or \"Daniel\". Omit for the default."),
+      rate: z
+        .number()
+        .optional()
+        .describe("Speaking rate in words per minute (e.g. 180). Omit for the default."),
+    },
+  },
+  async ({ script, voice, rate }) => {
+    try {
+      return ok(await generateVoiceover(script, workDir, { voice, rate }));
     } catch (err) {
       return fail(err);
     }
