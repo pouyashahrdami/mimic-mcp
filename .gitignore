@@ -4,7 +4,7 @@ dist/
 .DS_Store
 
 # analysis output (extracted frames, audio) lands here by default
-.reels-maker/
+.mimic-mcp/
 
 # personal test materials, never shipped
 video i like/

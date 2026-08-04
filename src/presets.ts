@@ -49,7 +49,7 @@ const BUILTIN_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), ".."
 
 // User presets live next to the caller's project so they're easy to commit/share.
 function userDir(workDir: string) {
-  return path.join(workDir, ".reels-maker", "presets");
+  return path.join(workDir, ".mimic-mcp", "presets");
 }
 
 /** Strip a full recipe down to its portable style skeleton. */

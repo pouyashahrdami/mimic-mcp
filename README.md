@@ -1,4 +1,4 @@
-# reels-maker
+# mimic-mcp
 
 An MCP server that turns "here's my footage, here's my script, make it look like *that* reel" into an actual rendered video.
 
@@ -47,12 +47,12 @@ The server gives the agent the tools to pull that off:
 | `list_presets` / `get_preset` | Browse and fetch style presets — shipped built-ins plus your own — a reusable look (caption styles, animations, transitions, zoom, timing) with no content. |
 | `save_preset` | Capture the style of a recipe you nailed (dropping footage, text and music) as a named preset to reapply to future reels. |
 
-Plus a `reels-maker` **prompt** that shows up as a slash command in Claude Code (`/mcp__reels-maker__reels-maker`) and walks the agent through the full workflow.
+Plus a `mimic-mcp` **prompt** that shows up as a slash command in Claude Code (`/mcp__mimic-mcp__mimic-mcp`) and walks the agent through the full workflow.
 
 ## How the workflow feels
 
 ```
-/reels-maker  my-screen-recording.mov  script.txt  reference-reel.mp4
+/mimic-mcp  my-screen-recording.mov  script.txt  reference-reel.mp4
 ```
 
 The agent then:
@@ -76,8 +76,8 @@ Requires: **Node 18+** and **ffmpeg/ffprobe** on your PATH (`brew install ffmpeg
 Optional: a local **whisper CLI** for `transcribe_reference` (`uv tool install whisper-ctranslate2` — light, no torch, or `pip install openai-whisper`). `generate_voiceover` uses macOS's built-in `say`, so it's macOS-only; every other tool is cross-platform.
 
 ```bash
-git clone https://github.com/pouyashahrdami/reels-maker
-cd reels-maker
+git clone https://github.com/pouyashahrdami/mimic-mcp
+cd mimic-mcp
 npm install
 npm run build
 ```
@@ -85,7 +85,7 @@ npm run build
 ### Claude Code
 
 ```bash
-claude mcp add reels-maker -- node /absolute/path/to/reels-maker/dist/index.js
+claude mcp add mimic-mcp -- node /absolute/path/to/mimic-mcp/dist/index.js
 ```
 
 ### Codex
@@ -93,9 +93,9 @@ claude mcp add reels-maker -- node /absolute/path/to/reels-maker/dist/index.js
 Add to `~/.codex/config.toml`:
 
 ```toml
-[mcp_servers.reels-maker]
+[mcp_servers.mimic-mcp]
 command = "node"
-args = ["/absolute/path/to/reels-maker/dist/index.js"]
+args = ["/absolute/path/to/mimic-mcp/dist/index.js"]
 ```
 
 ### Anything else

@@ -1,8 +1,8 @@
 /**
  * The workflow prompt exposed as a slash command in MCP clients
- * (Claude Code shows it as /mcp__reels-maker__reels-maker).
+ * (Claude Code shows it as /mcp__mimic-mcp__mimic-mcp).
  */
-export function reelsMakerPrompt(args: {
+export function mimicMcpPrompt(args: {
   my_video: string;
   script: string;
   reference_video: string;

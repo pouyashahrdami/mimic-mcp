@@ -39,7 +39,7 @@ function timedWords(
 }
 
 // The three caption looks the recipe can ask for. Tweak freely — this file
-// belongs to your project after scaffolding, not to reels-maker.
+// belongs to your project after scaffolding, not to mimic-mcp.
 const captionLooks: Record<string, CSSProperties> = {
   hook: {
     fontSize: 82,

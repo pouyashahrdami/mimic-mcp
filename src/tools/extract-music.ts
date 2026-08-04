@@ -3,7 +3,7 @@ import path from "node:path";
 import { extractAudio, probe } from "../ffmpeg.js";
 
 /**
- * Pull the soundtrack out of a video into `.reels-maker/` as an .m4a.
+ * Pull the soundtrack out of a video into `.mimic-mcp/` as an .m4a.
  * Returns the absolute path to the extracted file.
  */
 export async function extractMusic(
@@ -15,7 +15,7 @@ export async function extractMusic(
     throw new Error(`${videoPath} has no audio track to extract`);
   }
 
-  const outDir = path.join(workDir, ".reels-maker");
+  const outDir = path.join(workDir, ".mimic-mcp");
   await mkdir(outDir, { recursive: true });
 
   const outPath = path.join(

@@ -16,7 +16,7 @@ async function resolveText(scriptOrPath: string): Promise<string> {
 }
 
 /**
- * Generate a spoken voiceover from a script and drop it in `.reels-maker/` so
+ * Generate a spoken voiceover from a script and drop it in `.mimic-mcp/` so
  * the agent can wire it into a recipe as the audio track. Output filename is
  * content-addressed so re-running with the same script/voice is idempotent.
  */
@@ -28,7 +28,7 @@ export async function generateVoiceover(
   const text = await resolveText(scriptOrPath);
   if (!text.trim()) throw new Error("Script is empty — nothing to narrate.");
 
-  const outDir = path.join(workDir, ".reels-maker", "voiceover");
+  const outDir = path.join(workDir, ".mimic-mcp", "voiceover");
   await mkdir(outDir, { recursive: true });
 
   const hash = createHash("sha1")

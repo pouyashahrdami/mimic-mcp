@@ -23,7 +23,7 @@ export interface ReferenceAnalysis {
 /**
  * Probe the reference reel, find its cuts, and dump keyframes so the calling
  * agent can look at what each shot actually contains. Output lands in
- * `.reels-maker/<video-name>/` next to the cwd.
+ * `.mimic-mcp/<video-name>/` next to the cwd.
  */
 export async function analyzeReference(
   videoPath: string,
@@ -37,7 +37,7 @@ export async function analyzeReference(
 
   const outDir = path.join(
     workDir,
-    ".reels-maker",
+    ".mimic-mcp",
     path.basename(videoPath, path.extname(videoPath))
   );
   await mkdir(outDir, { recursive: true });

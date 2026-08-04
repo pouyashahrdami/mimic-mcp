@@ -12,9 +12,9 @@ import { generateVoiceover } from "./tools/generate-voiceover.js";
 import { scaffoldReel } from "./tools/scaffold-reel.js";
 import { renderReel } from "./tools/render-reel.js";
 import { reviewRender } from "./tools/review-render.js";
-import { reelsMakerPrompt } from "./prompt.js";
+import { mimicMcpPrompt } from "./prompt.js";
 
-const server = new McpServer({ name: "reels-maker", version: "0.1.0" });
+const server = new McpServer({ name: "mimic-mcp", version: "0.1.0" });
 
 // Analysis artifacts (frames, extracted audio) land under the client's cwd.
 const workDir = process.cwd();
@@ -174,7 +174,7 @@ server.registerTool(
     description:
       "Generate a self-contained Remotion project from a style recipe (JSON string). " +
       "Copies the background footage and music into the project. " +
-      "See the reels-maker prompt or README for the recipe format.",
+      "See the mimic-mcp prompt or README for the recipe format.",
     inputSchema: {
       recipe_json: z.string().describe("The style recipe as a JSON string"),
       project_dir: z.string().describe("Directory to create the project in (should not exist yet or be empty)"),
@@ -331,9 +331,9 @@ server.registerTool(
 );
 
 server.registerPrompt(
-  "reels-maker",
+  "mimic-mcp",
   {
-    title: "Reels maker",
+    title: "mimic-mcp",
     description:
       "Full workflow: study a reference reel, then recreate its style with your footage and script.",
     argsSchema: {
@@ -346,7 +346,7 @@ server.registerPrompt(
     messages: [
       {
         role: "user" as const,
-        content: { type: "text" as const, text: reelsMakerPrompt(args) },
+        content: { type: "text" as const, text: mimicMcpPrompt(args) },
       },
     ],
   })

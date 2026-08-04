@@ -1,12 +1,12 @@
 {
-  "name": "reels-maker",
+  "name": "mimic-mcp",
   "version": "0.1.0",
   "description": "MCP server that recreates the style of a reference reel with your footage and script, using Remotion",
   "license": "MIT",
   "author": "Pouya Shahrdami",
   "type": "module",
   "bin": {
-    "reels-maker": "dist/index.js"
+    "mimic-mcp": "dist/index.js"
   },
   "files": [
     "dist",
