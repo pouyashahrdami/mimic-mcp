@@ -263,6 +263,8 @@ export const Reel = () => {
           "backgroundStart" in segment ? segment.backgroundStart : undefined;
         const bgVideo =
           "backgroundVideo" in segment ? segment.backgroundVideo : undefined;
+        const bgPosition =
+          "backgroundPosition" in segment ? segment.backgroundPosition : undefined;
         return (
           <Sequence
             key={i}
@@ -274,7 +276,7 @@ export const Reel = () => {
                 src={staticFile(bgVideo ?? recipe.background.video)}
                 muted={recipe.background.muted}
                 startFrom={Math.round((bgStart ?? segment.start) * fps)}
-                style={backgroundStyle(recipe.background.fit)}
+                style={backgroundStyle(recipe.background.fit, bgPosition)}
               />
             )}
             <Caption

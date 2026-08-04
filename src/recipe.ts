@@ -35,6 +35,14 @@ export const segmentSchema = z.object({
         "Use to interleave multiple source clips (e.g. action shots alternating " +
         "with portrait shots). Falls back to background.video when omitted."
     ),
+  backgroundPosition: z
+    .string()
+    .optional()
+    .describe(
+      "CSS object-position for this segment's background (e.g. \"50% 20%\"). " +
+        "Use when cover-cropping cuts off the subject — a portrait clip in a " +
+        "landscape frame crops to its middle unless you aim it."
+    ),
   captionColor: z
     .string()
     .optional()
