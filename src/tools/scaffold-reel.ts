@@ -59,14 +59,20 @@ export async function scaffoldReel(
 
   localized.segments = [];
   for (const segment of recipe.segments) {
-    if (!segment.image) {
-      localized.segments.push(segment);
-      continue;
+    const local = { ...segment };
+    if (segment.image) {
+      await assertExists(segment.image, "segment image");
+      const imageName = path.basename(segment.image);
+      await cp(segment.image, path.join(publicDir, imageName));
+      local.image = imageName;
     }
-    await assertExists(segment.image, "segment image");
-    const imageName = path.basename(segment.image);
-    await cp(segment.image, path.join(publicDir, imageName));
-    localized.segments.push({ ...segment, image: imageName });
+    if (segment.backgroundVideo) {
+      await assertExists(segment.backgroundVideo, "segment background video");
+      const videoName = path.basename(segment.backgroundVideo);
+      await cp(segment.backgroundVideo, path.join(publicDir, videoName));
+      local.backgroundVideo = videoName;
+    }
+    localized.segments.push(local);
   }
 
   await writeFile(

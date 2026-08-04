@@ -15,6 +15,28 @@ import recipe from "../recipe.json";
 type Segment = (typeof recipe.segments)[number];
 
 const TRANSITION_FRAMES = 12;
+const DEFAULT_HIGHLIGHT = "#ffe000";
+
+// Split a caption into words, each tagged with the frame it "lands" on. Timings
+// come either from the recipe (wordTimings, in seconds from segment start) or,
+// when absent, are spread evenly across the segment — so karaoke works with zero
+// extra data and gets tighter the moment a transcription supplies real timings.
+function timedWords(
+  caption: string,
+  durationInFrames: number,
+  fps: number,
+  wordTimings?: number[]
+): { word: string; startFrame: number }[] {
+  const words = caption.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [];
+  return words.map((word, i) => {
+    const startFrame =
+      wordTimings && wordTimings[i] != null
+        ? Math.round(wordTimings[i] * fps)
+        : Math.round((i / words.length) * durationInFrames);
+    return { word, startFrame };
+  });
+}
 
 // The three caption looks the recipe can ask for. Tweak freely — this file
 // belongs to your project after scaffolding, not to reels-maker.
@@ -42,7 +64,70 @@ const captionLooks: Record<string, CSSProperties> = {
   },
 };
 
-const Caption = ({ segment }: { segment: Segment }) => {
+// Renders the caption text, honoring captionAnimation. Static "none" returns the
+// plain string; karaoke highlights each word as it lands; typewriter reveals the
+// caption character-by-character.
+const CaptionText = ({
+  segment,
+  durationInFrames,
+}: {
+  segment: Segment;
+  durationInFrames: number;
+}) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const animation = "captionAnimation" in segment ? segment.captionAnimation : "none";
+  const wordTimings = "wordTimings" in segment ? segment.wordTimings : undefined;
+
+  if (animation === "karaoke") {
+    const highlight =
+      ("highlightColor" in segment ? segment.highlightColor : undefined) ?? DEFAULT_HIGHLIGHT;
+    const words = timedWords(segment.caption, durationInFrames, fps, wordTimings);
+    return (
+      <>
+        {words.map(({ word, startFrame }, i) => {
+          const active = frame >= startFrame;
+          const justLanded = frame >= startFrame && frame < startFrame + 6;
+          return (
+            <span
+              key={i}
+              style={{
+                color: active ? highlight : "rgba(255,255,255,0.55)",
+                transform: justLanded ? "scale(1.08)" : "scale(1)",
+                display: "inline-block",
+                transition: "none",
+                marginRight: "0.28em",
+              }}
+            >
+              {word}
+            </span>
+          );
+        })}
+      </>
+    );
+  }
+
+  if (animation === "typewriter") {
+    const chars = segment.caption.length;
+    const shown = Math.round(
+      interpolate(frame, [0, Math.max(1, durationInFrames * 0.7)], [0, chars], {
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+      })
+    );
+    return <>{segment.caption.slice(0, shown)}</>;
+  }
+
+  return <>{segment.caption}</>;
+};
+
+const Caption = ({
+  segment,
+  durationInFrames,
+}: {
+  segment: Segment;
+  durationInFrames: number;
+}) => {
   const frame = useCurrentFrame(); // relative to the enclosing Sequence
 
   let opacity = 1;
@@ -77,7 +162,7 @@ const Caption = ({ segment }: { segment: Segment }) => {
         ...(size ? { fontSize: size } : {}),
       }}
     >
-      {segment.caption}
+      <CaptionText segment={segment} durationInFrames={durationInFrames} />
     </div>
   );
 
@@ -146,10 +231,13 @@ const backgroundStyle = (fit: string): CSSProperties => ({
 export const Reel = () => {
   const { fps } = useVideoConfig();
 
-  // Any segment with backgroundStart turns the reel into a montage: each
-  // segment shows its own slice of the footage instead of one continuous take.
+  // Any segment with backgroundStart or its own backgroundVideo turns the reel
+  // into a montage: each segment shows its own slice/source instead of one
+  // continuous take.
   const isMontage = recipe.segments.some(
-    (s) => "backgroundStart" in s && s.backgroundStart != null
+    (s) =>
+      ("backgroundStart" in s && s.backgroundStart != null) ||
+      ("backgroundVideo" in s && s.backgroundVideo != null)
   );
 
   return (
@@ -169,6 +257,8 @@ export const Reel = () => {
       {recipe.segments.map((segment, i) => {
         const bgStart =
           "backgroundStart" in segment ? segment.backgroundStart : undefined;
+        const bgVideo =
+          "backgroundVideo" in segment ? segment.backgroundVideo : undefined;
         return (
           <Sequence
             key={i}
@@ -177,13 +267,16 @@ export const Reel = () => {
           >
             {isMontage && (
               <OffthreadVideo
-                src={staticFile(recipe.background.video)}
+                src={staticFile(bgVideo ?? recipe.background.video)}
                 muted={recipe.background.muted}
                 startFrom={Math.round((bgStart ?? segment.start) * fps)}
                 style={backgroundStyle(recipe.background.fit)}
               />
             )}
-            <Caption segment={segment} />
+            <Caption
+              segment={segment}
+              durationInFrames={Math.round((segment.end - segment.start) * fps)}
+            />
           </Sequence>
         );
       })}

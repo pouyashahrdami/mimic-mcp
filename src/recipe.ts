@@ -27,6 +27,14 @@ export const segmentSchema = z.object({
       "Seconds into the background video where THIS segment's footage starts. " +
         "Set different offsets per segment to cut a montage out of one long clip."
     ),
+  backgroundVideo: z
+    .string()
+    .optional()
+    .describe(
+      "Absolute path to a different video for THIS segment's background. " +
+        "Use to interleave multiple source clips (e.g. action shots alternating " +
+        "with portrait shots). Falls back to background.video when omitted."
+    ),
   captionColor: z
     .string()
     .optional()
@@ -40,6 +48,28 @@ export const segmentSchema = z.object({
     .enum(["cut", "fade", "slide"])
     .default("cut")
     .describe("How this segment's caption enters"),
+  captionAnimation: z
+    .enum(["none", "karaoke", "typewriter"])
+    .default("none")
+    .describe(
+      "How the caption text animates over the segment. " +
+        "none = whole caption shown at once. " +
+        "karaoke = words revealed/highlighted one-by-one in sync (the TikTok/Reels look). " +
+        "typewriter = characters typed out left-to-right. " +
+        "By default words are timed evenly across the segment; provide `wordTimings` for exact sync."
+    ),
+  highlightColor: z
+    .string()
+    .optional()
+    .describe("Active-word color for karaoke captions (default: a bright accent). CSS color."),
+  wordTimings: z
+    .array(z.number().min(0))
+    .optional()
+    .describe(
+      "Optional per-word start times in seconds, relative to the segment start, one per " +
+        "whitespace-delimited word in the caption. When omitted, karaoke/typewriter spread the " +
+        "words evenly across the segment. Use timings from a transcription for exact lip/beat sync."
+    ),
 });
 
 export const recipeSchema = z.object({
@@ -79,6 +109,14 @@ export function parseRecipe(json: string): Recipe {
   for (const [i, seg] of recipe.segments.entries()) {
     if (seg.end <= seg.start) {
       throw new Error(`segment ${i}: end (${seg.end}) must be after start (${seg.start})`);
+    }
+    if (seg.wordTimings) {
+      const wordCount = seg.caption.trim().split(/\s+/).filter(Boolean).length;
+      if (seg.wordTimings.length !== wordCount) {
+        throw new Error(
+          `segment ${i}: wordTimings has ${seg.wordTimings.length} entries but the caption has ${wordCount} words`
+        );
+      }
     }
   }
 
