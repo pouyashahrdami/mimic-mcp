@@ -5,6 +5,7 @@ import { z } from "zod";
 import { analyzeReference } from "./tools/analyze-reference.js";
 import { extractMusic } from "./tools/extract-music.js";
 import { trimSilenceTool } from "./tools/trim-silence.js";
+import { exportVariants } from "./tools/export-variants.js";
 import { scaffoldReel } from "./tools/scaffold-reel.js";
 import { renderReel } from "./tools/render-reel.js";
 import { reviewRender } from "./tools/review-render.js";
@@ -177,6 +178,35 @@ server.registerTool(
   async ({ project_dir, reference_video }) => {
     try {
       return ok(await reviewRender(project_dir, reference_video));
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "export_variants",
+  {
+    title: "Export aspect-ratio variants",
+    description:
+      "Re-frame a rendered reel into other aspect ratios for cross-posting. " +
+      "Formats: reels (9:16), square (1:1), feed (4:5), youtube (16:9). " +
+      "mode 'crop' fills the frame (loses edges); 'pad' keeps everything on a blurred background.",
+    inputSchema: {
+      video: z.string().describe("Path to the rendered reel (e.g. out/reel.mp4)"),
+      formats: z
+        .array(z.enum(["reels", "square", "feed", "youtube"]))
+        .min(1)
+        .describe("Which aspect ratios to export"),
+      mode: z
+        .enum(["crop", "pad"])
+        .default("crop")
+        .describe("crop = fill & center-crop; pad = fit whole frame on a blurred background"),
+    },
+  },
+  async ({ video, formats, mode }) => {
+    try {
+      return ok(await exportVariants(video, formats, mode));
     } catch (err) {
       return fail(err);
     }

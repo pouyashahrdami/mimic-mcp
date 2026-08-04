@@ -267,6 +267,40 @@ export async function trimSilence(
   };
 }
 
+export type ReframeMode = "crop" | "pad";
+
+/**
+ * Re-frame a video to a new width/height. "crop" scales to cover then center-
+ * crops (fills the frame, loses edges); "pad" fits the whole frame inside a
+ * blurred, scaled-up copy of itself (keeps everything, adds cinematic bars).
+ */
+export async function reframe(
+  videoPath: string,
+  outPath: string,
+  width: number,
+  height: number,
+  mode: ReframeMode = "crop"
+): Promise<void> {
+  const filter =
+    mode === "crop"
+      ? `scale=${width}:${height}:force_original_aspect_ratio=increase,` +
+        `crop=${width}:${height},setsar=1`
+      : // Blurred fill behind the letterboxed original — the "no crop" look.
+        `split=2[bg][fg];` +
+        `[bg]scale=${width}:${height}:force_original_aspect_ratio=increase,` +
+        `crop=${width}:${height},boxblur=luma_radius=40:luma_power=1[bgb];` +
+        `[fg]scale=${width}:${height}:force_original_aspect_ratio=decrease[fgs];` +
+        `[bgb][fgs]overlay=(W-w)/2:(H-h)/2,setsar=1`;
+
+  await exec("ffmpeg", [
+    "-y",
+    "-i", videoPath,
+    "-vf", filter,
+    "-c:a", "copy",
+    outPath,
+  ]);
+}
+
 export async function extractFrame(
   videoPath: string,
   atSeconds: number,
