@@ -38,6 +38,12 @@ Work through these steps in order:
    - music = the extracted soundtrack, unless the user said otherwise
    - output dimensions 1080x1920 @ 30fps unless the reference clearly differs
    - durationSeconds: long enough for all segments, no longer than the music needs
+   - beat-flash montages: if the reference cuts extremely fast (sub-second shots,
+     often flipping between two source clips), build segment boundaries FROM the
+     "beats" array in analyze_reference's output — snap each start/end to an onset,
+     merge beats closer than ~0.15s so every cut lasts at least 4-5 frames, and
+     alternate backgroundVideo/backgroundStart per beat. Do not space fast cuts
+     evenly; off-beat flashing is what makes copies feel wrong
 
 5. Call scaffold_reel with the recipe and a fresh project directory.
 

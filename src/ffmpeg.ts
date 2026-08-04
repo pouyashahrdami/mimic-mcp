@@ -156,15 +156,29 @@ export async function detectBeats(
     }
   }
 
-  // An onset = a window whose energy rose by >= riseDb over the previous one and
-  // is a local peak of that rise (so a single hit yields one beat, not a run).
-  const beats: number[] = [];
-  for (let i = 1; i < levels.length; i++) {
-    const rise = levels[i] - levels[i - 1];
-    const nextRise = i + 1 < levels.length ? levels[i + 1] - levels[i] : 0;
-    if (rise >= riseDb && rise >= nextRise) {
-      beats.push(Math.round(times[i] * 100) / 100);
+  // An onset = a window whose energy rose by >= the threshold over the previous
+  // one and is a local peak of that rise (so a single hit yields one beat, not
+  // a run).
+  const onsetsAt = (threshold: number): number[] => {
+    const found: number[] = [];
+    for (let i = 1; i < levels.length; i++) {
+      const rise = levels[i] - levels[i - 1];
+      const nextRise = i + 1 < levels.length ? levels[i + 1] - levels[i] : 0;
+      if (rise >= threshold && rise >= nextRise) {
+        found.push(Math.round(times[i] * 100) / 100);
+      }
     }
+    return found;
+  };
+
+  // Heavily compressed tracks (most reel music) barely move in RMS, so a fixed
+  // threshold under-fires. Start at riseDb and relax by 0.5dB until the onset
+  // density looks like an actual beat grid (~1.5/s covers 90+ BPM) or we hit
+  // the floor.
+  const durationSeconds = times.length ? times[times.length - 1] : 0;
+  let beats = onsetsAt(riseDb);
+  for (let t = riseDb - 0.5; t >= 1 && beats.length < durationSeconds * 1.5; t -= 0.5) {
+    beats = onsetsAt(t);
   }
 
   // Estimate tempo from the median inter-onset interval (robust to outliers).
