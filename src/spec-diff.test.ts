@@ -108,6 +108,25 @@ describe("diffSpecs", () => {
     expect(diff.issues.join(" ")).toContain("add a zoom");
   });
 
+  it("doesn't let a non-overlapping shot's motion stand in for the missing one", () => {
+    const ref = baseSpec({
+      shots: [
+        {
+          start: 0,
+          end: 3,
+          motion: { type: "zoom", scaleTo: 1.12, panX: 0, panY: 0, easing: "easeOut" },
+        },
+      ],
+    });
+    const render = baseSpec({
+      shots: [
+        { start: 7, end: 10, motion: { type: "zoom", scaleTo: 1.12, panX: 0, panY: 0, easing: null } },
+      ],
+    });
+    const diff = diffSpecs(ref, render);
+    expect(diff.issues.join(" ")).toContain("add a zoom");
+  });
+
   it("compares captions by timing overlap and flags size drift", () => {
     const ref = baseSpec({ captions: [caption("original text", 1, 4)] });
     const render = baseSpec({

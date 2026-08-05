@@ -158,10 +158,12 @@ export function diffSpecs(reference: StyleSpec, render: StyleSpec): SpecDiff {
       start: refShot.start * scale,
       end: refShot.end * scale,
     };
+    // Only shots that actually overlap the reference shot's window count as
+    // a match — otherwise a distant shot's motion masks a missing zoom.
     const renderShot = render.shots
-      .filter((s) => s.motion)
+      .filter((s) => s.motion && overlap(s, scaled) > 0)
       .reduce(
-        (best, s) => (overlap(s, scaled) > overlap(best ?? s, scaled) ? s : (best ?? s)),
+        (best, s) => (!best || overlap(s, scaled) > overlap(best, scaled) ? s : best),
         undefined as (typeof render.shots)[number] | undefined
       );
     const renderMotion = renderShot?.motion;
