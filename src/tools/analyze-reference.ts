@@ -1,6 +1,13 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import { planShotFrames, shotsFromCuts, type FramePosition, type SceneCut } from "../analysis.js";
+import {
+  estimateBpm,
+  planShotFrames,
+  shotsFromCuts,
+  type FramePosition,
+  type SceneCut,
+} from "../analysis.js";
+import { tryAubioBeats } from "../aubio.js";
 import { detectBeats, detectSceneCuts, extractFrame, probe } from "../ffmpeg.js";
 
 // More shots than this stops being "study the style" and starts being noise.
@@ -32,6 +39,8 @@ export interface ReferenceAnalysis {
   averageShotSeconds: number;
   beats: number[];
   bpm: number | null;
+  /** "aubio" = real beat tracking; "rms-onset" = ffmpeg energy-rise fallback. */
+  beatMethod: "aubio" | "rms-onset" | null;
   shots: ShotAnalysis[];
   keyframes: { atSeconds: number; file: string }[];
   notes: string[];
@@ -49,9 +58,20 @@ export async function analyzeReference(
   const info = await probe(videoPath);
   const detectedCuts = await detectSceneCuts(videoPath);
   const cuts = detectedCuts.map((c) => c.time);
-  const { beats, bpm } = info.hasAudio
-    ? await detectBeats(videoPath)
-    : { beats: [], bpm: null };
+  let beats: number[] = [];
+  let bpm: number | null = null;
+  let beatMethod: ReferenceAnalysis["beatMethod"] = null;
+  if (info.hasAudio) {
+    const aubioBeats = await tryAubioBeats(videoPath);
+    if (aubioBeats && aubioBeats.length > 0) {
+      beats = aubioBeats;
+      bpm = estimateBpm(aubioBeats);
+      beatMethod = "aubio";
+    } else {
+      ({ beats, bpm } = await detectBeats(videoPath));
+      beatMethod = "rms-onset";
+    }
+  }
 
   const outDir = path.join(
     workDir,
@@ -128,10 +148,18 @@ export async function analyzeReference(
     notes.push("Reference has no audio track, so extract_music will fail on it.");
   }
   if (beats.length >= 4) {
+    const source =
+      beatMethod === "aubio" ? "beats (aubio beat tracker)" : "musical onsets";
     notes.push(
-      `Detected ${beats.length} musical onsets${bpm ? ` (~${bpm} BPM)` : ""}. ` +
+      `Detected ${beats.length} ${source}${bpm ? ` (~${bpm} BPM)` : ""}. ` +
         "For a beat-synced feel, align your segment start/end times to the `beats` timestamps " +
         "rather than spacing cuts evenly."
+    );
+  }
+  if (beatMethod === "rms-onset") {
+    notes.push(
+      "Beats came from the RMS energy-rise fallback, which fires on speech plosives and misses " +
+        "quiet beats. Installing aubio (`brew install aubio`) upgrades this to real beat tracking."
     );
   }
 
@@ -147,6 +175,7 @@ export async function analyzeReference(
     averageShotSeconds,
     beats,
     bpm,
+    beatMethod,
     shots,
     keyframes,
     notes,

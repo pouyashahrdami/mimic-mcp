@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { parseScdetSamples, pickSceneCuts, type SceneCut } from "./analysis.js";
+import { estimateBpm, parseScdetSamples, pickSceneCuts, type SceneCut } from "./analysis.js";
 
 export type { SceneCut } from "./analysis.js";
 
@@ -100,7 +100,7 @@ export async function detectSceneCuts(videoPath: string): Promise<SceneCut[]> {
 export interface BeatAnalysis {
   /** Onset (beat/hit) timestamps in seconds. */
   beats: number[];
-  /** Estimated tempo from the median gap between onsets, or null if too few. */
+  /** Tempo estimated by autocorrelating the onsets, or null if aperiodic. */
   bpm: number | null;
 }
 
@@ -180,18 +180,7 @@ export async function detectBeats(
     beats = onsetsAt(t);
   }
 
-  // Estimate tempo from the median inter-onset interval (robust to outliers).
-  let bpm: number | null = null;
-  if (beats.length >= 4) {
-    const gaps = beats.slice(1).map((b, i) => b - beats[i]).filter((g) => g > 0.1);
-    if (gaps.length) {
-      gaps.sort((a, b) => a - b);
-      const medianGap = gaps[Math.floor(gaps.length / 2)];
-      bpm = Math.round(60 / medianGap);
-    }
-  }
-
-  return { beats, bpm };
+  return { beats, bpm: estimateBpm(beats) };
 }
 
 export interface SilenceTrimResult {

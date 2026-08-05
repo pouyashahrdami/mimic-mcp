@@ -73,7 +73,7 @@ The agent then:
 
 Requires: **Node 18+** and **ffmpeg/ffprobe** on your PATH (`brew install ffmpeg`).
 
-Optional: a local **whisper CLI** for `transcribe_reference` (`uv tool install whisper-ctranslate2` — light, no torch, or `pip install openai-whisper`). `generate_voiceover` uses macOS's built-in `say`, so it's macOS-only; every other tool is cross-platform.
+Optional: a local **whisper CLI** for `transcribe_reference` (`uv tool install whisper-ctranslate2` — light, no torch, or `pip install openai-whisper`), and **aubio** (`brew install aubio`) to upgrade `analyze_reference`'s beat detection from an energy-rise heuristic to real beat tracking. `generate_voiceover` uses macOS's built-in `say`, so it's macOS-only; every other tool is cross-platform.
 
 ```bash
 git clone https://github.com/pouyashahrdami/mimic-mcp

@@ -126,6 +126,56 @@ export function pickSceneCuts(
   });
 }
 
+/**
+ * Estimate tempo by autocorrelating the onset train instead of taking the
+ * median inter-onset gap — the median breaks as soon as half the onsets are
+ * off-beat hits (speech plosives, syncopation), while autocorrelation still
+ * peaks at the true period. Onsets are smeared a few samples wide so ±20ms of
+ * timing jitter still counts as a match, and each candidate period gets a
+ * bonus for its double correlating too, which keeps harmonics from winning.
+ */
+export function estimateBpm(
+  onsets: number[],
+  { sampleRate = 100, minBpm = 50, maxBpm = 200 } = {}
+): number | null {
+  if (onsets.length < 4) return null;
+  const first = onsets[0];
+  const duration = onsets[onsets.length - 1] - first;
+  if (duration <= 0) return null;
+
+  const n = Math.ceil(duration * sampleRate) + 3;
+  const train = new Float64Array(n);
+  for (const t of onsets) {
+    const center = Math.round((t - first) * sampleRate);
+    for (let d = -2; d <= 2; d++) {
+      const i = center + d;
+      if (i >= 0 && i < n) train[i] += 1 - Math.abs(d) / 3;
+    }
+  }
+
+  const autocorr = (lag: number): number => {
+    let r = 0;
+    for (let k = 0; k + lag < n; k++) r += train[k] * train[k + lag];
+    return r;
+  };
+
+  const minLag = Math.max(1, Math.round((sampleRate * 60) / maxBpm));
+  const maxLag = Math.min(n - 1, Math.round((sampleRate * 60) / minBpm));
+  let bestLag = 0;
+  let bestScore = 0;
+  for (let lag = minLag; lag <= maxLag; lag++) {
+    const score = autocorr(lag) + 0.5 * (2 * lag < n ? autocorr(2 * lag) : 0);
+    if (score > bestScore) {
+      bestScore = score;
+      bestLag = lag;
+    }
+  }
+
+  // A real grid produces several aligned pairs; near-zero means no periodicity.
+  if (bestLag === 0 || bestScore < 2) return null;
+  return Math.round((60 * sampleRate) / bestLag);
+}
+
 export type FramePosition = "start" | "mid" | "end";
 
 export interface PlannedFrame {
