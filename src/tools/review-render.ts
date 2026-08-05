@@ -1,6 +1,7 @@
 import { access, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { extractFrame, probe } from "../ffmpeg.js";
+import { mapLimit } from "../parallel.js";
 import { recipeSchema } from "../recipe.js";
 import { diffSpecs, type SpecDiff } from "../spec-diff.js";
 import { analyzeReference } from "./analyze-reference.js";
@@ -41,8 +42,7 @@ export async function reviewRender(
     ? (await probe(referenceVideo)).durationSeconds
     : 0;
 
-  const frames: ReviewFrame[] = [];
-  for (const [i, segment] of recipe.segments.entries()) {
+  const frames = await mapLimit(recipe.segments, 4, async (segment, i) => {
     const mid = (segment.start + segment.end) / 2;
 
     const renderedFrame = path.join(reviewDir, `segment-${i}-render.jpg`);
@@ -56,14 +56,14 @@ export async function reviewRender(
       await extractFrame(referenceVideo, refTime, referenceFrame);
     }
 
-    frames.push({
+    return {
       segment: i,
       caption: segment.caption,
       atSeconds: Math.round(mid * 100) / 100,
       renderedFrame,
       referenceFrame,
-    });
-  }
+    } satisfies ReviewFrame;
+  });
 
   // The measured half of the review: analyze the render with the exact same
   // pipeline as the reference and diff the resulting specs.

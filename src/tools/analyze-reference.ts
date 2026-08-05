@@ -25,10 +25,15 @@ import {
   probe,
 } from "../ffmpeg.js";
 import { tryOcrFrames } from "../ocr.js";
+import { mapLimit } from "../parallel.js";
 import type { MeasuredTransition, StyleSpec } from "../style-spec.js";
 
 // More shots than this stops being "study the style" and starts being noise.
 const MAX_SAMPLED_SHOTS = 8;
+
+// ffmpeg invocations per extraction batch — each is a short seek+decode, so a
+// handful in flight saturates the disk without swamping the machine.
+const FFMPEG_CONCURRENCY = 4;
 
 export interface ShotFrame {
   position: FramePosition;
@@ -167,10 +172,10 @@ export async function analyzeReference(
   const MIN_MOTION_SHOT_SECONDS = 0.4;
   const MAX_MOTION_SECONDS = 20;
   const sampledIndices = [...new Set(plannedFrames.map((f) => f.shotIndex))];
-  for (const shotIndex of sampledIndices) {
+  await mapLimit(sampledIndices, FFMPEG_CONCURRENCY, async (shotIndex) => {
     const shot = shotRanges[shotIndex];
     const length = shot.end - shot.start;
-    if (length < MIN_MOTION_SHOT_SECONDS) continue;
+    if (length < MIN_MOTION_SHOT_SECONDS) return;
     // Inset past the boundary frames, which are often mid-transition.
     const start = shot.start + Math.min(0.1, length / 10);
     const end = Math.min(shot.end - Math.min(0.1, length / 10), start + MAX_MOTION_SECONDS);
@@ -182,48 +187,49 @@ export async function analyzeReference(
     );
     const samples = accumulateMotion(frames, width, height, fps, start);
     shots[shotIndex].motion = summarizeShotMotion(samples, width, height);
-  }
+  });
 
   // Fingerprint every shot-to-shot transition from the frames around it, and
   // pair it with a native-fps burst strip so even a 3-frame flash is visible.
   const TRANSITION_WINDOW = 0.5;
   const BURST_WINDOW = 0.25;
-  const transitions: ReferenceAnalysis["transitions"] = [];
-  for (const t of cuts) {
-    const start = Math.max(0, t - TRANSITION_WINDOW);
-    const end = Math.min(info.videoSeconds, t + TRANSITION_WINDOW);
-    const { frames, width, height, fps } = await decodeShotForMotion(
-      videoPath,
-      start,
-      end,
-      info.fps
-    );
-    const fp = fingerprintTransition(frames, width, height, fps);
-    if (!fp) continue;
+  const transitions = (
+    await mapLimit(cuts, FFMPEG_CONCURRENCY, async (t) => {
+      const start = Math.max(0, t - TRANSITION_WINDOW);
+      const end = Math.min(info.videoSeconds, t + TRANSITION_WINDOW);
+      const { frames, width, height, fps } = await decodeShotForMotion(
+        videoPath,
+        start,
+        end,
+        info.fps
+      );
+      const fp = fingerprintTransition(frames, width, height, fps);
+      if (!fp) return null;
 
-    const burstStart = Math.max(0, t - BURST_WINDOW);
-    const burstEnd = Math.min(info.videoSeconds, t + BURST_WINDOW);
-    const plan = planFilmstrip(burstStart, burstEnd, info.fps);
-    let filmstrip: Filmstrip | undefined;
-    if (plan) {
-      const file = path.join(outDir, `transition-${t.toFixed(2)}s-strip.jpg`);
-      await extractFilmstrip(videoPath, burstStart, file, plan);
-      filmstrip = {
-        file,
-        frameTimes: plan.frameTimes,
-        cols: plan.cols,
-        rows: plan.rows,
+      const burstStart = Math.max(0, t - BURST_WINDOW);
+      const burstEnd = Math.min(info.videoSeconds, t + BURST_WINDOW);
+      const plan = planFilmstrip(burstStart, burstEnd, info.fps);
+      let filmstrip: Filmstrip | undefined;
+      if (plan) {
+        const file = path.join(outDir, `transition-${t.toFixed(2)}s-strip.jpg`);
+        await extractFilmstrip(videoPath, burstStart, file, plan);
+        filmstrip = {
+          file,
+          frameTimes: plan.frameTimes,
+          cols: plan.cols,
+          rows: plan.rows,
+        };
+      }
+
+      return {
+        time: Math.round(t * 100) / 100,
+        kind: fp.kind,
+        durationSeconds: fp.durationSeconds,
+        ...(fp.direction ? { direction: fp.direction } : {}),
+        ...(filmstrip ? { filmstrip } : {}),
       };
-    }
-
-    transitions.push({
-      time: Math.round(t * 100) / 100,
-      kind: fp.kind,
-      durationSeconds: fp.durationSeconds,
-      ...(fp.direction ? { direction: fp.direction } : {}),
-      ...(filmstrip ? { filmstrip } : {}),
-    });
-  }
+    })
+  ).filter((t): t is NonNullable<typeof t> => t !== null);
   // One frame just after each overlay swap, so every state of an on-screen
   // graphic is visible — a single mid-shot frame only ever catches one.
   const MAX_OVERLAY_FRAMES = 12;
@@ -235,19 +241,22 @@ export async function analyzeReference(
       (_, i) => sampledOverlayTimes[Math.floor(i * step)]
     );
   }
-  const overlayChanges: { atSeconds: number; file: string }[] = [];
-  for (const t of sampledOverlayTimes) {
-    const at = Math.min(t + 0.1, info.videoSeconds - 1 / info.fps);
-    const file = path.join(outDir, `overlay-${t.toFixed(2)}s.jpg`);
-    await extractFrame(videoPath, at, file);
-    overlayChanges.push({ atSeconds: Math.round(t * 100) / 100, file });
-  }
+  const overlayChanges = await mapLimit(
+    sampledOverlayTimes,
+    FFMPEG_CONCURRENCY,
+    async (t) => {
+      const at = Math.min(t + 0.1, info.videoSeconds - 1 / info.fps);
+      const file = path.join(outDir, `overlay-${t.toFixed(2)}s.jpg`);
+      await extractFrame(videoPath, at, file);
+      return { atSeconds: Math.round(t * 100) / 100, file };
+    }
+  );
 
   // One contact sheet per sampled shot: the whole motion arc in one image.
-  for (const shotIndex of sampledIndices) {
+  await mapLimit(sampledIndices, FFMPEG_CONCURRENCY, async (shotIndex) => {
     const shot = shotRanges[shotIndex];
     const plan = planFilmstrip(shot.start, shot.end, info.fps);
-    if (!plan) continue;
+    if (!plan) return;
     const file = path.join(
       outDir,
       `shot-${String(shotIndex + 1).padStart(2, "0")}-strip.jpg`
@@ -259,15 +268,22 @@ export async function analyzeReference(
       cols: plan.cols,
       rows: plan.rows,
     };
-  }
+  });
 
   const keyframes: { atSeconds: number; file: string }[] = [];
-  for (const f of plannedFrames) {
-    const file = path.join(
-      outDir,
-      `shot-${String(f.shotIndex + 1).padStart(2, "0")}-${f.position}-${f.atSeconds.toFixed(2)}s.jpg`
-    );
-    await extractFrame(videoPath, f.atSeconds, file);
+  const extractedFrames = await mapLimit(
+    plannedFrames,
+    FFMPEG_CONCURRENCY,
+    async (f) => {
+      const file = path.join(
+        outDir,
+        `shot-${String(f.shotIndex + 1).padStart(2, "0")}-${f.position}-${f.atSeconds.toFixed(2)}s.jpg`
+      );
+      await extractFrame(videoPath, f.atSeconds, file);
+      return { f, file };
+    }
+  );
+  for (const { f, file } of extractedFrames) {
     const atSeconds = Math.round(f.atSeconds * 100) / 100;
     shots[f.shotIndex].frames.push({ position: f.position, atSeconds, file });
     keyframes.push({ atSeconds, file });
