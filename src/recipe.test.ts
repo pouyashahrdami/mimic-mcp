@@ -121,4 +121,15 @@ describe("parseRecipe", () => {
     bad.segments[0] = { start: 0, end: 11, caption: "x" };
     expect(() => parseRecipe(JSON.stringify(bad))).toThrow("durationSeconds");
   });
+
+  it("catches an overrun even when segments aren't listed in order", () => {
+    const bad = structuredClone(minimalRecipe) as typeof minimalRecipe & {
+      segments: Record<string, unknown>[];
+    };
+    bad.segments = [
+      { start: 6, end: 11, caption: "overruns" },
+      { start: 0, end: 6, caption: "listed last" },
+    ];
+    expect(() => parseRecipe(JSON.stringify(bad))).toThrow("durationSeconds");
+  });
 });

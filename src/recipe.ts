@@ -237,10 +237,10 @@ export function parseRecipe(json: string): Recipe {
     }
   }
 
-  const last = recipe.segments[recipe.segments.length - 1];
-  if (last.end > recipe.output.durationSeconds) {
+  const lastEnd = Math.max(...recipe.segments.map((s) => s.end));
+  if (lastEnd > recipe.output.durationSeconds) {
     throw new Error(
-      `last segment ends at ${last.end}s but output.durationSeconds is ${recipe.output.durationSeconds}s`
+      `last segment ends at ${lastEnd}s but output.durationSeconds is ${recipe.output.durationSeconds}s`
     );
   }
 
