@@ -1,5 +1,8 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { parseScdetSamples, pickSceneCuts, type SceneCut } from "./analysis.js";
+
+export type { SceneCut } from "./analysis.js";
 
 const run = promisify(execFile);
 
@@ -76,26 +79,22 @@ export async function mediaDuration(mediaPath: string): Promise<number> {
 }
 
 /**
- * Detect hard cuts by scoring frame-to-frame difference. Returns timestamps
- * (seconds) where a new shot starts. `threshold` is ffmpeg's scene score
- * (0..1); 0.3 catches typical hard cuts without firing on fast motion.
+ * Detect scene changes with ffmpeg's dedicated scdet filter. Per-frame scores
+ * are collected and thresholded adaptively (see pickSceneCuts), detections
+ * closer than ~0.15s are merged, and each one is classified as a hard cut or
+ * a fade/dissolve from the measured frame-difference profile.
  */
-export async function detectSceneCuts(
-  videoPath: string,
-  threshold = 0.3
-): Promise<number[]> {
+export async function detectSceneCuts(videoPath: string): Promise<SceneCut[]> {
+  // threshold=100 keeps scdet's own logging quiet; the per-frame score/mafd
+  // metadata is attached regardless and metadata=print dumps it to stderr.
   const { stderr } = await exec("ffmpeg", [
     "-i", videoPath,
-    "-vf", `select='gt(scene,${threshold})',showinfo`,
+    "-vf", "scdet=threshold=100,metadata=print",
     "-f", "null",
     "-",
   ]);
 
-  const cuts: number[] = [];
-  for (const match of stderr.matchAll(/pts_time:([\d.]+)/g)) {
-    cuts.push(Number(match[1]));
-  }
-  return cuts;
+  return pickSceneCuts(parseScdetSamples(stderr));
 }
 
 export interface BeatAnalysis {

@@ -17,6 +17,115 @@ export function shotsFromCuts(cuts: number[], durationSeconds: number): Shot[] {
     .filter((s) => s.end - s.start > 0.01);
 }
 
+export interface ScdetSample {
+  time: number;
+  /** scdet's scene-change score: min(mafd, |mafd - prev_mafd|), 0..100. */
+  score: number;
+  /** Mean absolute frame difference, 0..100 — sustained during dissolves. */
+  mafd: number;
+}
+
+/**
+ * Parse per-frame scdet metadata out of ffmpeg stderr. The `metadata=print`
+ * filter emits a `pts_time:` line per frame followed by one line per metadata
+ * key; frames without a score (the very first one) are skipped.
+ */
+export function parseScdetSamples(stderr: string): ScdetSample[] {
+  const samples: ScdetSample[] = [];
+  let time: number | null = null;
+  let mafd = 0;
+  for (const line of stderr.split("\n")) {
+    const timeMatch = line.match(/pts_time:([\d.]+)/);
+    if (timeMatch) {
+      time = Number(timeMatch[1]);
+      continue;
+    }
+    const mafdMatch = line.match(/lavfi\.scd\.mafd=(-?[\d.]+)/);
+    if (mafdMatch) {
+      mafd = Number(mafdMatch[1]);
+      continue;
+    }
+    const scoreMatch = line.match(/lavfi\.scd\.score=(-?[\d.]+)/);
+    if (scoreMatch && time != null) {
+      samples.push({ time, score: Number(scoreMatch[1]), mafd });
+      time = null;
+    }
+  }
+  return samples;
+}
+
+export interface SceneCut {
+  time: number;
+  score: number;
+  /** Measured, not guessed: "cut" = single-frame spike, "fade" = a dissolve. */
+  type: "cut" | "fade";
+}
+
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.floor(sorted.length / 2)];
+}
+
+/**
+ * Turn per-frame scdet scores into scene cuts:
+ * - adaptive threshold (median + k*MAD, floored) instead of a fixed score,
+ *   so quiet footage and busy footage both threshold sensibly;
+ * - local-maximum picking plus a minimum gap, because transitions produce
+ *   double detections that inflate the cut count;
+ * - cut vs fade classification from the mafd profile after each detection —
+ *   a hard cut's frame difference collapses immediately, a dissolve's stays
+ *   near the peak for the length of the fade.
+ */
+export function pickSceneCuts(
+  samples: ScdetSample[],
+  {
+    floor = 8,
+    madK = 6,
+    minGapSeconds = 0.15,
+    fadeWindowSeconds = 0.35,
+  } = {}
+): SceneCut[] {
+  if (samples.length === 0) return [];
+
+  const scores = samples.map((s) => s.score);
+  const med = median(scores);
+  const mad = median(scores.map((s) => Math.abs(s - med)));
+  const threshold = Math.max(floor, med + madK * mad);
+
+  const candidates: number[] = [];
+  for (let i = 0; i < samples.length; i++) {
+    const s = samples[i].score;
+    if (s < threshold) continue;
+    const prev = i > 0 ? samples[i - 1].score : -Infinity;
+    const next = i + 1 < samples.length ? samples[i + 1].score : -Infinity;
+    if (s >= prev && s > next) candidates.push(i);
+  }
+
+  const deduped: number[] = [];
+  for (const idx of candidates) {
+    const last = deduped[deduped.length - 1];
+    if (last !== undefined && samples[idx].time - samples[last].time < minGapSeconds) {
+      if (samples[idx].score > samples[last].score) deduped[deduped.length - 1] = idx;
+      continue;
+    }
+    deduped.push(idx);
+  }
+
+  return deduped.map((idx) => {
+    const { time, score, mafd } = samples[idx];
+    const after = samples
+      .filter((s, j) => j > idx && s.time - time <= fadeWindowSeconds)
+      .map((s) => s.mafd);
+    const sustained = after.length ? median(after) : 0;
+    const type = mafd > 0 && sustained >= mafd * 0.5 ? "fade" : "cut";
+    return {
+      time: Math.round(time * 100) / 100,
+      score: Math.round(score * 10) / 10,
+      type,
+    };
+  });
+}
+
 export type FramePosition = "start" | "mid" | "end";
 
 export interface PlannedFrame {

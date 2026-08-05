@@ -33,6 +33,32 @@ export async function makeCutVideo(
   ]);
 }
 
+/** Two color clips joined by an xfade dissolve starting at `offsetSeconds`. */
+export async function makeFadeVideo(
+  outPath: string,
+  {
+    colorA = "black",
+    colorB = "white",
+    offsetSeconds = 2,
+    fadeSeconds = 0.3,
+    size = "160x288",
+    fps = 30,
+  } = {}
+): Promise<void> {
+  const aSeconds = offsetSeconds + fadeSeconds;
+  await run("ffmpeg", [
+    "-y",
+    "-f", "lavfi",
+    "-i", `color=c=${colorA}:s=${size}:d=${aSeconds}:r=${fps}`,
+    "-f", "lavfi",
+    "-i", `color=c=${colorB}:s=${size}:d=2:r=${fps}`,
+    "-filter_complex",
+    `[0:v][1:v]xfade=transition=fade:duration=${fadeSeconds}:offset=${offsetSeconds}[v]`,
+    "-map", "[v]",
+    outPath,
+  ]);
+}
+
 /**
  * Audio file with sharp sine "clicks" at the given times over near-silence —
  * a beat grid with known ground truth.

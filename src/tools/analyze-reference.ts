@@ -1,6 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import { planShotFrames, shotsFromCuts, type FramePosition } from "../analysis.js";
+import { planShotFrames, shotsFromCuts, type FramePosition, type SceneCut } from "../analysis.js";
 import { detectBeats, detectSceneCuts, extractFrame, probe } from "../ffmpeg.js";
 
 // More shots than this stops being "study the style" and starts being noise.
@@ -27,6 +27,8 @@ export interface ReferenceAnalysis {
   fps: number;
   hasAudio: boolean;
   sceneCuts: number[];
+  /** Each detected cut with its score and measured type (hard cut vs fade). */
+  cuts: SceneCut[];
   averageShotSeconds: number;
   beats: number[];
   bpm: number | null;
@@ -45,7 +47,8 @@ export async function analyzeReference(
   workDir: string
 ): Promise<ReferenceAnalysis> {
   const info = await probe(videoPath);
-  const cuts = await detectSceneCuts(videoPath);
+  const detectedCuts = await detectSceneCuts(videoPath);
+  const cuts = detectedCuts.map((c) => c.time);
   const { beats, bpm } = info.hasAudio
     ? await detectBeats(videoPath)
     : { beats: [], bpm: null };
@@ -113,6 +116,14 @@ export async function analyzeReference(
       "No hard cuts detected — the reference is likely a single continuous shot, or uses only soft transitions."
     );
   }
+  const fadeCount = detectedCuts.filter((c) => c.type === "fade").length;
+  if (fadeCount > 0) {
+    notes.push(
+      `${fadeCount} of the ${detectedCuts.length} transitions measured as fades/dissolves ` +
+        "(see `cuts[].type`) — use transitionIn \"fade\" for the segments starting there, " +
+        "and \"cut\" for the rest."
+    );
+  }
   if (!info.hasAudio) {
     notes.push("Reference has no audio track, so extract_music will fail on it.");
   }
@@ -132,6 +143,7 @@ export async function analyzeReference(
     fps: info.fps,
     hasAudio: info.hasAudio,
     sceneCuts: cuts.map((c) => Math.round(c * 100) / 100),
+    cuts: detectedCuts,
     averageShotSeconds,
     beats,
     bpm,
