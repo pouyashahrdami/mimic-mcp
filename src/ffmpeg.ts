@@ -1,4 +1,6 @@
 import { execFile } from "node:child_process";
+import { readdir } from "node:fs/promises";
+import path from "node:path";
 import { promisify } from "node:util";
 import { estimateBpm, frameChangeSamples, pickSceneCuts, type SceneCut } from "./analysis.js";
 
@@ -424,6 +426,53 @@ export async function extractFilmstrip(
     `fps=${plan.fps},scale=${tileWidth}:-1,tile=${plan.cols}x${plan.rows}`,
     "-frames:v", "1",
     "-q:v", "3",
+    outPath,
+  ]);
+}
+
+/**
+ * Dump frames at `fps` into numbered JPEGs for OCR. Full resolution — small
+ * caption text needs the pixels. Returns each frame's timestamp and path.
+ */
+export async function extractFramesForOcr(
+  videoPath: string,
+  outDir: string,
+  fps: number,
+  maxFrames: number
+): Promise<{ time: number; file: string }[]> {
+  const pattern = path.join(outDir, "ocr-%04d.jpg");
+  await exec("ffmpeg", [
+    "-y",
+    "-i", videoPath,
+    "-vf", `fps=${fps}`,
+    "-frames:v", String(maxFrames),
+    "-q:v", "3",
+    pattern,
+  ]);
+  const files = (await readdir(outDir))
+    .filter((f) => /^ocr-\d{4}\.jpg$/.test(f))
+    .sort();
+  return files.map((f, i) => ({
+    time: Math.round((i / fps) * 100) / 100,
+    file: path.join(outDir, f),
+  }));
+}
+
+/** Crop a region (normalized bbox, top-left origin) out of one frame. */
+export async function extractCrop(
+  videoPath: string,
+  atSeconds: number,
+  bbox: { x: number; y: number; w: number; h: number },
+  outPath: string
+): Promise<void> {
+  await exec("ffmpeg", [
+    "-y",
+    "-ss", String(atSeconds),
+    "-i", videoPath,
+    "-vf",
+    `crop=iw*${bbox.w.toFixed(4)}:ih*${bbox.h.toFixed(4)}:iw*${bbox.x.toFixed(4)}:ih*${bbox.y.toFixed(4)}`,
+    "-frames:v", "1",
+    "-q:v", "2",
     outPath,
   ]);
 }

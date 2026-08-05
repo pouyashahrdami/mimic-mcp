@@ -1,4 +1,5 @@
 import type { ShotMotion, TransitionKind } from "./analysis.js";
+import type { CaptionEvent } from "./captions.js";
 
 export interface MeasuredTransition {
   time: number;
@@ -27,6 +28,12 @@ export interface StyleSpec {
   transitions: MeasuredTransition[];
   /** On-screen graphic swaps on held shots (stats cards cycling, etc.). */
   overlayChanges: number[];
+  /**
+   * OCR'd caption track: every on-screen text with measured timing, position
+   * and size. Empty when the reel has no text; null when OCR was unavailable
+   * (non-macOS / no Swift toolchain).
+   */
+  captions: CaptionEvent[] | null;
   beats: number[];
   bpm: number | null;
 }

@@ -13,14 +13,18 @@ import {
   type ShotMotion,
 } from "../analysis.js";
 import { tryAubioBeats } from "../aubio.js";
+import { buildCaptionTrack, type CaptionEvent } from "../captions.js";
 import {
   decodeShotForMotion,
   detectBeats,
   detectSceneCuts,
+  extractCrop,
   extractFilmstrip,
   extractFrame,
+  extractFramesForOcr,
   probe,
 } from "../ffmpeg.js";
+import { tryOcrFrames } from "../ocr.js";
 import type { MeasuredTransition, StyleSpec } from "../style-spec.js";
 
 // More shots than this stops being "study the style" and starts being noise.
@@ -91,6 +95,13 @@ export interface ReferenceAnalysis {
   beatMethod: "aubio" | "rms-onset" | null;
   shots: ShotAnalysis[];
   keyframes: { atSeconds: number; file: string }[];
+  /**
+   * OCR'd caption track (macOS Vision): every on-screen text with measured
+   * timing, position, size and case. Null when OCR isn't available.
+   */
+  captions: CaptionEvent[] | null;
+  /** Close-up crop of the biggest caption, for matching the font visually. */
+  captionSample?: string;
   /** The measured style spec, also written to style-spec.json in the work dir. */
   styleSpec: StyleSpec;
   styleSpecFile: string;
@@ -262,6 +273,36 @@ export async function analyzeReference(
     keyframes.push({ atSeconds, file });
   }
 
+  // OCR pass: sample frames a few times a second, read every on-screen text
+  // with Vision, and fold the sightings into a measured caption track.
+  const OCR_FPS = 2.5;
+  const MAX_OCR_FRAMES = 80;
+  const ocrDir = path.join(outDir, "ocr-frames");
+  await mkdir(ocrDir, { recursive: true });
+  const ocrFrames = await extractFramesForOcr(videoPath, ocrDir, OCR_FPS, MAX_OCR_FRAMES);
+  const ocrResults = await tryOcrFrames(ocrFrames);
+  const captions = ocrResults ? buildCaptionTrack(ocrResults) : null;
+
+  // Crop the biggest caption out of the video at full quality so the agent
+  // can match the font against a specimen instead of guessing from thumbnails.
+  let captionSample: string | undefined;
+  if (captions && captions.length > 0) {
+    const biggest = captions.reduce((a, b) => (b.lineHeight > a.lineHeight ? b : a));
+    const pad = biggest.h * 0.6;
+    captionSample = path.join(outDir, "caption-sample.jpg");
+    await extractCrop(
+      videoPath,
+      (biggest.start + biggest.end) / 2,
+      {
+        x: Math.max(0, biggest.x - pad),
+        y: Math.max(0, biggest.y - pad),
+        w: Math.min(1 - Math.max(0, biggest.x - pad), biggest.w + pad * 2),
+        h: Math.min(1 - Math.max(0, biggest.y - pad), biggest.h + pad * 2),
+      },
+      captionSample
+    );
+  }
+
   const shotCount = cuts.length + 1;
   const averageShotSeconds =
     Math.round((info.videoSeconds / shotCount) * 100) / 100;
@@ -359,6 +400,32 @@ export async function analyzeReference(
     );
   }
 
+  if (captions === null) {
+    notes.push(
+      "Caption OCR unavailable (needs macOS with the Swift toolchain — `xcode-select --install`). " +
+        "Read caption text, timing and position from the filmstrips instead."
+    );
+  } else if (captions.length > 0) {
+    const described = captions
+      .slice(0, 12)
+      .map(
+        (c) =>
+          `"${c.text}" ${c.start}-${c.end}s (${c.band}, ~${Math.round(c.lineHeight * info.height)}px` +
+          `${c.uppercase ? ", UPPERCASE" : ""})`
+      )
+      .join("; ");
+    notes.push(
+      `MEASURED captions (OCR, not guessed): ${described}${captions.length > 12 ? "; …" : ""}. ` +
+        "Use these exact timings/positions/sizes for the recipe's segments. " +
+        (captionSample
+          ? "Open `captionSample` (a full-quality crop) to identify the font: check weight, " +
+            "serif vs sans, rounded vs sharp terminals, and set captionFont to the closest match."
+          : "")
+    );
+  } else {
+    notes.push("OCR found no on-screen text — the reference carries no burned-in captions.");
+  }
+
   const styleSpec: StyleSpec = {
     source: videoPath,
     durationSeconds: info.durationSeconds,
@@ -368,6 +435,7 @@ export async function analyzeReference(
     shots: shots.map((s) => ({ start: s.start, end: s.end, motion: s.motion })),
     transitions: transitions.map(({ filmstrip: _strip, ...t }) => t),
     overlayChanges: overlayTimes.map((t) => Math.round(t * 100) / 100),
+    captions,
     beats,
     bpm,
   };
@@ -391,6 +459,8 @@ export async function analyzeReference(
     beatMethod,
     shots,
     keyframes,
+    captions,
+    ...(captionSample ? { captionSample } : {}),
     styleSpec,
     styleSpecFile,
     notes,
