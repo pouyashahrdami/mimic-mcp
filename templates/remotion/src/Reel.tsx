@@ -10,9 +10,50 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import recipe from "../recipe.json";
+import recipeJson from "../recipe.json";
 
-type Segment = (typeof recipe.segments)[number];
+// The recipe's real shape (mirrors mimic-mcp's recipe schema). recipe.json's
+// INFERRED type only contains the keys this particular recipe happens to use,
+// so typing against it breaks on every optional field — cast once instead.
+type VideoTransition = {
+  kind: "dissolve" | "dip-to-black" | "dip-to-white" | "wipe" | "slide";
+  durationSeconds: number;
+  direction?: "left" | "right" | "up" | "down";
+};
+
+type Zoom = { from: number; to: number; focusX: number; focusY: number; easing?: string };
+
+type Segment = {
+  start: number;
+  end: number;
+  caption: string;
+  captionStyle: "hook" | "tip" | "plain";
+  image?: string;
+  backgroundStart?: number;
+  backgroundVideo?: string;
+  backgroundPosition?: string;
+  videoTransitionIn?: VideoTransition;
+  zoom?: Zoom;
+  speed?: number;
+  captionColor?: string;
+  captionFont?: string;
+  captionSize?: number;
+  transitionIn: "cut" | "fade" | "slide";
+  sound?: string;
+  soundVolume?: number;
+  captionAnimation: "none" | "karaoke" | "typewriter";
+  highlightColor?: string;
+  wordTimings?: number[];
+};
+
+type Recipe = {
+  output: { width: number; height: number; fps: number; durationSeconds: number };
+  background: { video: string; fit: string; muted: boolean };
+  music?: { file: string; volume: number };
+  segments: Segment[];
+};
+
+const recipe = recipeJson as unknown as Recipe;
 
 const TRANSITION_FRAMES = 12;
 const DEFAULT_HIGHLIGHT = "#ffe000";
@@ -76,15 +117,13 @@ const CaptionText = ({
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const animation = "captionAnimation" in segment ? segment.captionAnimation : "none";
+  const animation = segment.captionAnimation ?? "none";
   // recipe.json's inferred type is per-project; cast the optional timing array.
-  const wordTimings = ("wordTimings" in segment ? segment.wordTimings : undefined) as
-    | number[]
-    | undefined;
+  const wordTimings = segment.wordTimings;
 
   if (animation === "karaoke") {
     const highlight =
-      ("highlightColor" in segment ? segment.highlightColor : undefined) ?? DEFAULT_HIGHLIGHT;
+      segment.highlightColor ?? DEFAULT_HIGHLIGHT;
     const words = timedWords(segment.caption, durationInFrames, fps, wordTimings);
     return (
       <>
@@ -149,10 +188,10 @@ const Caption = ({
   }
 
   const isTip = segment.captionStyle === "tip";
-  const image = "image" in segment ? segment.image : undefined;
-  const color = "captionColor" in segment ? segment.captionColor : undefined;
-  const size = "captionSize" in segment ? segment.captionSize : undefined;
-  const font = "captionFont" in segment ? segment.captionFont : undefined;
+  const image = segment.image;
+  const color = segment.captionColor;
+  const size = segment.captionSize;
+  const font = segment.captionFont;
 
   const captionEl = (
     <div
@@ -234,7 +273,51 @@ const backgroundStyle = (fit: string, position?: string): CSSProperties => ({
   ...(position ? { objectPosition: position } : {}),
 });
 
-type Zoom = { from: number; to: number; focusX: number; focusY: number };
+const easings: Record<string, (t: number) => number> = {
+  linear: (t) => t,
+  easeIn: (t) => t * t,
+  easeOut: (t) => 1 - (1 - t) * (1 - t),
+  easeInOut: (t) => (t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t)),
+};
+
+// How the incoming segment's background enters over its first `frames` frames.
+// The previous segment's background keeps rendering underneath (its Sequence is
+// extended by the same amount), so dissolves/wipes/slides have footage to blend
+// against. Dips don't need underlap — they ride a solid-color overlay instead.
+const transitionWrap = (
+  transition: VideoTransition | undefined,
+  frame: number,
+  frames: number,
+  width: number,
+  height: number
+): CSSProperties => {
+  if (!transition || frames <= 0 || frame >= frames) return {};
+  const t = Math.min(1, Math.max(0, frame / frames));
+  if (transition.kind === "dissolve") {
+    return { opacity: t };
+  }
+  if (transition.kind === "wipe") {
+    const dir = transition.direction ?? "right";
+    const remaining = (1 - t) * 100;
+    const inset =
+      dir === "right"
+        ? `inset(0 ${remaining}% 0 0)`
+        : dir === "left"
+          ? `inset(0 0 0 ${remaining}%)`
+          : dir === "down"
+            ? `inset(0 0 ${remaining}% 0)`
+            : `inset(${remaining}% 0 0 0)`;
+    return { clipPath: inset };
+  }
+  if (transition.kind === "slide") {
+    const dir = transition.direction ?? "right";
+    const off = 1 - t;
+    const x = dir === "right" ? -off * width : dir === "left" ? off * width : 0;
+    const y = dir === "down" ? -off * height : dir === "up" ? off * height : 0;
+    return { transform: `translate(${x}px, ${y}px)` };
+  }
+  return {};
+};
 
 // One segment's background clip, optionally punched-in with an animated zoom.
 // The scale ramps from zoom.from to zoom.to across the segment, anchored at the
@@ -248,6 +331,8 @@ const SegmentBackground = ({
   zoom,
   speed,
   durationInFrames,
+  transition,
+  transitionFrames,
 }: {
   src: string;
   fit: string;
@@ -257,8 +342,11 @@ const SegmentBackground = ({
   zoom?: Zoom;
   speed?: number;
   durationInFrames: number;
+  transition?: VideoTransition;
+  transitionFrames: number;
 }) => {
   const frame = useCurrentFrame();
+  const { width, height } = useVideoConfig();
   const video = (
     <OffthreadVideo
       src={staticFile(src)}
@@ -269,23 +357,50 @@ const SegmentBackground = ({
     />
   );
 
-  if (!zoom) return video;
+  let inner = video;
+  if (zoom) {
+    const progress = Math.min(1, Math.max(0, frame / durationInFrames));
+    const eased = (easings[zoom.easing ?? "linear"] ?? easings.linear)(progress);
+    const scale = zoom.from + (zoom.to - zoom.from) * eased;
+    inner = (
+      <AbsoluteFill
+        style={{
+          transform: `scale(${scale})`,
+          transformOrigin: `${zoom.focusX * 100}% ${zoom.focusY * 100}%`,
+        }}
+      >
+        {video}
+      </AbsoluteFill>
+    );
+  }
 
-  const scale = interpolate(frame, [0, durationInFrames], [zoom.from, zoom.to], {
+  const wrap = transitionWrap(transition, frame, transitionFrames, width, height);
+  if (Object.keys(wrap).length === 0) return inner;
+  return <AbsoluteFill style={wrap}>{inner}</AbsoluteFill>;
+};
+
+// Solid-color flash carrying a dip-to-black/white: fades the color in up to
+// the segment boundary and out again after it, covering footage and captions.
+const DipOverlay = ({
+  color,
+  durationInFrames,
+}: {
+  color: string;
+  durationInFrames: number;
+}) => {
+  const frame = useCurrentFrame();
+  const half = durationInFrames / 2;
+  const opacity = interpolate(frame, [0, half, durationInFrames], [0, 1, 0], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
-  return (
-    <AbsoluteFill
-      style={{
-        transform: `scale(${scale})`,
-        transformOrigin: `${zoom.focusX * 100}% ${zoom.focusY * 100}%`,
-      }}
-    >
-      {video}
-    </AbsoluteFill>
-  );
+  return <AbsoluteFill style={{ backgroundColor: color, opacity }} />;
 };
+
+// A dip needs footage to have transitioned by the time the flash peaks; the
+// underlap/overlay math treats it separately from blend transitions.
+const needsUnderlap = (t?: VideoTransition): boolean =>
+  t != null && (t.kind === "dissolve" || t.kind === "wipe" || t.kind === "slide");
 
 export const Reel = () => {
   const { fps } = useVideoConfig();
@@ -295,10 +410,11 @@ export const Reel = () => {
   // independently zoomed) instead of one continuous take.
   const isMontage = recipe.segments.some(
     (s) =>
-      ("backgroundStart" in s && s.backgroundStart != null) ||
-      ("backgroundVideo" in s && s.backgroundVideo != null) ||
-      ("zoom" in s && s.zoom != null) ||
-      ("speed" in s && s.speed != null)
+      s.backgroundStart != null ||
+      s.backgroundVideo != null ||
+      s.zoom != null ||
+      s.speed != null ||
+      s.videoTransitionIn != null
   );
 
   return (
@@ -315,26 +431,28 @@ export const Reel = () => {
         <Audio src={staticFile(recipe.music.file)} volume={recipe.music.volume} />
       ) : null}
 
-      {recipe.segments.map((segment, i) => {
-        const bgStart =
-          "backgroundStart" in segment ? segment.backgroundStart : undefined;
-        const bgVideo =
-          "backgroundVideo" in segment ? segment.backgroundVideo : undefined;
-        const bgPosition =
-          "backgroundPosition" in segment ? segment.backgroundPosition : undefined;
-        const zoom = ("zoom" in segment ? segment.zoom : undefined) as Zoom | undefined;
-        const speed = "speed" in segment ? segment.speed : undefined;
-        const sound = "sound" in segment ? segment.sound : undefined;
-        const soundVolume =
-          ("soundVolume" in segment ? segment.soundVolume : undefined) ?? 0.7;
-        const durationInFrames = Math.round((segment.end - segment.start) * fps);
-        return (
-          <Sequence
-            key={i}
-            from={Math.round(segment.start * fps)}
-            durationInFrames={durationInFrames}
-          >
-            {isMontage && (
+      {/* Background pass. A segment whose successor enters with a blend
+          transition renders EXTENDED by the transition length, so the incoming
+          footage has something to dissolve/wipe/slide over. */}
+      {isMontage &&
+        recipe.segments.map((segment, i) => {
+          const bgStart = segment.backgroundStart;
+          const bgVideo = segment.backgroundVideo;
+          const bgPosition = segment.backgroundPosition;
+          const zoom = segment.zoom;
+          const speed = segment.speed;
+          const transition = segment.videoTransitionIn;
+          const nextTransition = recipe.segments[i + 1]?.videoTransitionIn;
+          const extendFrames = needsUnderlap(nextTransition)
+            ? Math.round(nextTransition!.durationSeconds * fps)
+            : 0;
+          const durationInFrames = Math.round((segment.end - segment.start) * fps);
+          return (
+            <Sequence
+              key={`bg-${i}`}
+              from={Math.round(segment.start * fps)}
+              durationInFrames={durationInFrames + extendFrames}
+            >
               <SegmentBackground
                 src={bgVideo ?? recipe.background.video}
                 fit={recipe.background.fit}
@@ -344,10 +462,45 @@ export const Reel = () => {
                 zoom={zoom}
                 speed={speed}
                 durationInFrames={durationInFrames}
+                transition={needsUnderlap(transition) ? transition : undefined}
+                transitionFrames={
+                  transition ? Math.round(transition.durationSeconds * fps) : 0
+                }
               />
-            )}
+            </Sequence>
+          );
+        })}
+
+      {/* Caption + sound pass, on exact segment bounds. */}
+      {recipe.segments.map((segment, i) => {
+        const sound = segment.sound;
+        const soundVolume =
+          segment.soundVolume ?? 0.7;
+        const durationInFrames = Math.round((segment.end - segment.start) * fps);
+        return (
+          <Sequence
+            key={`fg-${i}`}
+            from={Math.round(segment.start * fps)}
+            durationInFrames={durationInFrames}
+          >
             {sound ? <Audio src={staticFile(sound)} volume={soundVolume} /> : null}
             <Caption segment={segment} durationInFrames={durationInFrames} />
+          </Sequence>
+        );
+      })}
+
+      {/* Dip flashes, centered on each dip segment's start. */}
+      {recipe.segments.map((segment, i) => {
+        const transition = segment.videoTransitionIn;
+        if (!transition || !transition.kind.startsWith("dip-")) return null;
+        const dipFrames = Math.max(2, Math.round(transition.durationSeconds * fps));
+        const from = Math.max(0, Math.round(segment.start * fps) - Math.round(dipFrames / 2));
+        return (
+          <Sequence key={`dip-${i}`} from={from} durationInFrames={dipFrames}>
+            <DipOverlay
+              color={transition.kind === "dip-to-black" ? "black" : "white"}
+              durationInFrames={dipFrames}
+            />
           </Sequence>
         );
       })}

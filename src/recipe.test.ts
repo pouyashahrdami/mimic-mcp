@@ -66,6 +66,56 @@ describe("parseRecipe", () => {
     }
   });
 
+  it("accepts measured video transitions and eased zooms", () => {
+    const rich = structuredClone(minimalRecipe) as typeof minimalRecipe & {
+      segments: Record<string, unknown>[];
+    };
+    rich.segments = [
+      { start: 0, end: 5, caption: "first", zoom: { to: 1.12, easing: "easeOut" } },
+      {
+        start: 5,
+        end: 10,
+        caption: "second",
+        backgroundStart: 20,
+        videoTransitionIn: { kind: "dissolve", durationSeconds: 0.4 },
+      },
+    ];
+    const recipe = parseRecipe(JSON.stringify(rich));
+    expect(recipe.segments[0].zoom?.easing).toBe("easeOut");
+    expect(recipe.segments[1].videoTransitionIn?.kind).toBe("dissolve");
+    expect(recipe.segments[1].videoTransitionIn?.durationSeconds).toBe(0.4);
+  });
+
+  it("defaults transition duration and zoom easing", () => {
+    const rich = structuredClone(minimalRecipe) as typeof minimalRecipe & {
+      segments: Record<string, unknown>[];
+    };
+    rich.segments = [
+      { start: 0, end: 5, caption: "a", zoom: {} },
+      { start: 5, end: 10, caption: "b", videoTransitionIn: { kind: "wipe", direction: "left" } },
+    ];
+    const recipe = parseRecipe(JSON.stringify(rich));
+    expect(recipe.segments[0].zoom?.easing).toBe("linear");
+    expect(recipe.segments[1].videoTransitionIn?.durationSeconds).toBe(0.3);
+  });
+
+  it("rejects a blend transition on the first segment but allows a dip", () => {
+    const bad = structuredClone(minimalRecipe) as typeof minimalRecipe & {
+      segments: Record<string, unknown>[];
+    };
+    bad.segments[0] = {
+      start: 0,
+      end: 5,
+      caption: "x",
+      videoTransitionIn: { kind: "dissolve" },
+    };
+    expect(() => parseRecipe(JSON.stringify(bad))).toThrow("previous segment");
+
+    const ok = structuredClone(bad);
+    ok.segments[0].videoTransitionIn = { kind: "dip-to-black" };
+    expect(() => parseRecipe(JSON.stringify(ok))).not.toThrow();
+  });
+
   it("rejects a recipe whose last segment overruns the output duration", () => {
     const bad = structuredClone(minimalRecipe);
     bad.segments[0] = { start: 0, end: 11, caption: "x" };

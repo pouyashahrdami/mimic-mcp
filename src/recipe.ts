@@ -43,10 +43,45 @@ export const segmentSchema = z.object({
         "Use when cover-cropping cuts off the subject — a portrait clip in a " +
         "landscape frame crops to its middle unless you aim it."
     ),
+  videoTransitionIn: z
+    .object({
+      kind: z
+        .enum(["dissolve", "dip-to-black", "dip-to-white", "wipe", "slide"])
+        .describe(
+          "dissolve = crossfade from the previous segment's footage; dip = fade through " +
+            "solid black/white; wipe = the new footage is revealed behind a sweeping edge; " +
+            "slide = the new footage pushes in."
+        ),
+      durationSeconds: z
+        .number()
+        .positive()
+        .max(2)
+        .default(0.3)
+        .describe("On-screen length of the transition (analyze_reference measures this)"),
+      direction: z
+        .enum(["left", "right", "up", "down"])
+        .optional()
+        .describe("For wipe/slide: which way the new footage moves in. Default right."),
+    })
+    .optional()
+    .describe(
+      "REAL footage transition from the previous segment — the video itself dissolves/" +
+        "dips/wipes, not just the caption. Copy kind and durationSeconds straight from " +
+        "analyze_reference's measured `transitions`. Needs per-segment backgrounds " +
+        "(backgroundStart/backgroundVideo) to have two clips to blend, except dips, " +
+        "which work over any background. Omit for a hard cut."
+    ),
   zoom: z
     .object({
       from: z.number().positive().default(1).describe("Starting scale (1 = no zoom)"),
       to: z.number().positive().default(1.3).describe("Ending scale (>1 = punch in, <from = pull out)"),
+      easing: z
+        .enum(["linear", "easeIn", "easeOut", "easeInOut"])
+        .default("linear")
+        .describe(
+          "How the zoom progresses over the segment. analyze_reference measures this " +
+            "per shot (shots[].motion.easing) — copy it instead of guessing."
+        ),
       focusX: z
         .number()
         .min(0)
@@ -172,6 +207,16 @@ export function parseRecipe(json: string): Recipe {
   for (const [i, seg] of recipe.segments.entries()) {
     if (seg.end <= seg.start) {
       throw new Error(`segment ${i}: end (${seg.end}) must be after start (${seg.start})`);
+    }
+    if (
+      i === 0 &&
+      seg.videoTransitionIn &&
+      !seg.videoTransitionIn.kind.startsWith("dip-")
+    ) {
+      throw new Error(
+        `segment 0: videoTransitionIn "${seg.videoTransitionIn.kind}" needs a previous ` +
+          "segment to transition from — only dips work on the first segment"
+      );
     }
     if (seg.wordTimings) {
       const wordCount = seg.caption.trim().split(/\s+/).filter(Boolean).length;
