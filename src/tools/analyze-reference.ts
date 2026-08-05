@@ -1,14 +1,24 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
+  accumulateMotion,
   estimateBpm,
   planShotFrames,
   shotsFromCuts,
+  summarizeShotMotion,
   type FramePosition,
   type SceneCut,
+  type ShotMotion,
 } from "../analysis.js";
 import { tryAubioBeats } from "../aubio.js";
-import { detectBeats, detectSceneCuts, extractFrame, probe } from "../ffmpeg.js";
+import {
+  decodeShotForMotion,
+  detectBeats,
+  detectSceneCuts,
+  extractFrame,
+  probe,
+} from "../ffmpeg.js";
+import type { StyleSpec } from "../style-spec.js";
 
 // More shots than this stops being "study the style" and starts being noise.
 const MAX_SAMPLED_SHOTS = 8;
@@ -24,6 +34,12 @@ export interface ShotAnalysis {
   end: number;
   seconds: number;
   frames: ShotFrame[];
+  /**
+   * MEASURED in-shot motion (gradient-flow estimation, not eyeballed from
+   * frames): zoom/pan magnitude with fitted easing. Null for unsampled or
+   * too-short shots.
+   */
+  motion: ShotMotion | null;
 }
 
 export interface ReferenceAnalysis {
@@ -49,6 +65,9 @@ export interface ReferenceAnalysis {
   beatMethod: "aubio" | "rms-onset" | null;
   shots: ShotAnalysis[];
   keyframes: { atSeconds: number; file: string }[];
+  /** The measured style spec, also written to style-spec.json in the work dir. */
+  styleSpec: StyleSpec;
+  styleSpecFile: string;
   notes: string[];
 }
 
@@ -101,7 +120,31 @@ export async function analyzeReference(
     end: Math.round(s.end * 100) / 100,
     seconds: Math.round((s.end - s.start) * 100) / 100,
     frames: [],
+    motion: null,
   }));
+
+  // Measure in-shot motion (punch-ins, pans, easing) on the sampled shots.
+  // Only shots long enough for the integration to rise above jitter; the
+  // decode window is capped so one very long take doesn't dominate runtime.
+  const MIN_MOTION_SHOT_SECONDS = 0.4;
+  const MAX_MOTION_SECONDS = 20;
+  const sampledIndices = [...new Set(plannedFrames.map((f) => f.shotIndex))];
+  for (const shotIndex of sampledIndices) {
+    const shot = shotRanges[shotIndex];
+    const length = shot.end - shot.start;
+    if (length < MIN_MOTION_SHOT_SECONDS) continue;
+    // Inset past the boundary frames, which are often mid-transition.
+    const start = shot.start + Math.min(0.1, length / 10);
+    const end = Math.min(shot.end - Math.min(0.1, length / 10), start + MAX_MOTION_SECONDS);
+    const { frames, width, height, fps } = await decodeShotForMotion(
+      videoPath,
+      start,
+      end,
+      info.fps
+    );
+    const samples = accumulateMotion(frames, width, height, fps, start);
+    shots[shotIndex].motion = summarizeShotMotion(samples, width, height);
+  }
   // One frame just after each overlay swap, so every state of an on-screen
   // graphic is visible — a single mid-shot frame only ever catches one.
   const MAX_OVERLAY_FRAMES = 12;
@@ -202,6 +245,42 @@ export async function analyzeReference(
     );
   }
 
+  const movingShots = shots.filter((s) => s.motion && s.motion.type !== "static");
+  if (movingShots.length > 0) {
+    const described = movingShots
+      .map((s) => {
+        const m = s.motion!;
+        const parts: string[] = [];
+        if (m.type.includes("zoom")) {
+          parts.push(`${m.scaleTo > 1 ? "punch-in to" : "pull-out to"} ${Math.round(m.scaleTo * 100)}%`);
+        }
+        if (m.type.includes("pan")) {
+          parts.push(`pan ${Math.round(m.panX * 100)}%x/${Math.round(m.panY * 100)}%y`);
+        }
+        return `${s.start}-${s.end}s: ${parts.join(" + ")}${m.easing ? ` (${m.easing})` : ""}`;
+      })
+      .join("; ");
+    notes.push(
+      `MEASURED in-shot motion (no need to eyeball the frames for this): ${described}. ` +
+        "Copy these into the matching segments' `zoom` (from/to = 1/scaleTo) — the numbers " +
+        "are measured from the reference, not guessed."
+    );
+  }
+
+  const styleSpec: StyleSpec = {
+    source: videoPath,
+    durationSeconds: info.durationSeconds,
+    width: info.width,
+    height: info.height,
+    fps: info.fps,
+    shots: shots.map((s) => ({ start: s.start, end: s.end, motion: s.motion })),
+    transitions: detectedCuts,
+    beats,
+    bpm,
+  };
+  const styleSpecFile = path.join(outDir, "style-spec.json");
+  await writeFile(styleSpecFile, JSON.stringify(styleSpec, null, 2));
+
   return {
     video: videoPath,
     durationSeconds: info.durationSeconds,
@@ -218,6 +297,8 @@ export async function analyzeReference(
     beatMethod,
     shots,
     keyframes,
+    styleSpec,
+    styleSpecFile,
     notes,
   };
 }

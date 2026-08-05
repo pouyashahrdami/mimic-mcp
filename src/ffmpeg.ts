@@ -93,6 +93,78 @@ const ANALYSIS_WIDTH = 48;
 const ANALYSIS_HEIGHT = 27;
 const MAX_ANALYSIS_FPS = 30;
 
+// Motion estimation needs more pixels than cut detection: a slow punch-in
+// moves edge content by fractions of a pixel per frame, and gradient flow
+// resolves sub-pixel shifts better with more samples.
+const MOTION_WIDTH = 96;
+const MOTION_HEIGHT = 54;
+
+export interface GrayFrames {
+  frames: Uint8Array[];
+  width: number;
+  height: number;
+  fps: number;
+}
+
+/** Decode a stretch of video into tiny grayscale rasters, one per frame. */
+export async function decodeGrayFrames(
+  videoPath: string,
+  {
+    width,
+    height,
+    fps,
+    start,
+    duration,
+  }: { width: number; height: number; fps: number; start?: number; duration?: number }
+): Promise<GrayFrames> {
+  const args = ["-hide_banner"];
+  // Fast seek before -i; fine here because we re-decode from the keyframe.
+  if (start !== undefined) args.push("-ss", String(start));
+  args.push("-i", videoPath);
+  if (duration !== undefined) args.push("-t", String(duration));
+  args.push(
+    "-vf", `fps=${fps},scale=${width}:${height},format=gray`,
+    "-f", "rawvideo",
+    "-"
+  );
+
+  const { stdout } = await run("ffmpeg", args, {
+    encoding: "buffer",
+    maxBuffer: MAX_BUFFER,
+  }).catch((err: NodeJS.ErrnoException) => {
+    if (err.code === "ENOENT") throw new FfmpegMissingError("ffmpeg");
+    throw err;
+  });
+
+  const frameBytes = width * height;
+  const raw = stdout as unknown as Buffer;
+  const frames: Uint8Array[] = [];
+  for (let off = 0; off + frameBytes <= raw.length; off += frameBytes) {
+    frames.push(new Uint8Array(raw.buffer, raw.byteOffset + off, frameBytes));
+  }
+  return { frames, width, height, fps };
+}
+
+/**
+ * Decode a single shot at motion-estimation resolution. Callers feed the
+ * result through accumulateMotion/summarizeShotMotion from analysis.ts.
+ */
+export async function decodeShotForMotion(
+  videoPath: string,
+  startSeconds: number,
+  endSeconds: number,
+  videoFps: number
+): Promise<GrayFrames> {
+  const fps = Math.min(videoFps || MAX_ANALYSIS_FPS, MAX_ANALYSIS_FPS);
+  return decodeGrayFrames(videoPath, {
+    width: MOTION_WIDTH,
+    height: MOTION_HEIGHT,
+    fps,
+    start: startSeconds,
+    duration: endSeconds - startSeconds,
+  });
+}
+
 /**
  * Detect scene changes by decoding EVERY frame to a small grayscale vector
  * and diffing consecutive frames (see frameChangeSamples) — nothing between
@@ -104,28 +176,11 @@ const MAX_ANALYSIS_FPS = 30;
 export async function detectSceneCuts(videoPath: string): Promise<SceneCut[]> {
   const info = await probe(videoPath);
   const fps = Math.min(info.fps || MAX_ANALYSIS_FPS, MAX_ANALYSIS_FPS);
-
-  const { stdout } = await run(
-    "ffmpeg",
-    [
-      "-i", videoPath,
-      "-vf", `fps=${fps},scale=${ANALYSIS_WIDTH}:${ANALYSIS_HEIGHT},format=gray`,
-      "-f", "rawvideo",
-      "-",
-    ],
-    { encoding: "buffer", maxBuffer: MAX_BUFFER }
-  ).catch((err: NodeJS.ErrnoException) => {
-    if (err.code === "ENOENT") throw new FfmpegMissingError("ffmpeg");
-    throw err;
+  const { frames } = await decodeGrayFrames(videoPath, {
+    width: ANALYSIS_WIDTH,
+    height: ANALYSIS_HEIGHT,
+    fps,
   });
-
-  const frameBytes = ANALYSIS_WIDTH * ANALYSIS_HEIGHT;
-  const raw = stdout as unknown as Buffer;
-  const frames: Uint8Array[] = [];
-  for (let off = 0; off + frameBytes <= raw.length; off += frameBytes) {
-    frames.push(new Uint8Array(raw.buffer, raw.byteOffset + off, frameBytes));
-  }
-
   return pickSceneCuts(
     frameChangeSamples(frames, ANALYSIS_WIDTH, ANALYSIS_HEIGHT, fps)
   );

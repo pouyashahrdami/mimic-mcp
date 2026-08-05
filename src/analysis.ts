@@ -240,6 +240,227 @@ export function estimateBpm(
   return Math.round((60 * sampleRate) / bestLag);
 }
 
+export interface FrameMotion {
+  /** Horizontal translation of the content, in pixels at analysis resolution. */
+  dx: number;
+  /** Vertical translation, in pixels. */
+  dy: number;
+  /** Per-frame multiplicative scale change: >1 = content expanding (zoom in). */
+  scale: number;
+}
+
+/**
+ * Estimate the global similarity motion (translation + scale about the frame
+ * center) between two grayscale frames by solving the optical-flow constraint
+ * Ix*u + Iy*v + It = 0 in least squares with u = dx + s*(x-cx),
+ * v = dy + s*(y-cy). One linear solve — valid for the small inter-frame
+ * motion of real footage, which is exactly what punch-ins and pans are.
+ * Gradients are averaged across both frames so the estimate stays unbiased.
+ */
+export function estimateFrameMotion(
+  a: Uint8Array,
+  b: Uint8Array,
+  width: number,
+  height: number
+): FrameMotion {
+  const cx = (width - 1) / 2;
+  const cy = (height - 1) / 2;
+  // Normal equations for p = [dx, dy, s]: (AᵀA) p = Aᵀ(-It)
+  let m00 = 0, m01 = 0, m02 = 0, m11 = 0, m12 = 0, m22 = 0;
+  let r0 = 0, r1 = 0, r2 = 0;
+
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      const i = y * width + x;
+      const ix =
+        (a[i + 1] - a[i - 1] + b[i + 1] - b[i - 1]) / 4;
+      const iy =
+        (a[i + width] - a[i - width] + b[i + width] - b[i - width]) / 4;
+      const it = b[i] - a[i];
+      const g = ix * (x - cx) + iy * (y - cy);
+      m00 += ix * ix;
+      m01 += ix * iy;
+      m02 += ix * g;
+      m11 += iy * iy;
+      m12 += iy * g;
+      m22 += g * g;
+      r0 -= ix * it;
+      r1 -= iy * it;
+      r2 -= g * it;
+    }
+  }
+
+  // Solve the symmetric 3x3 system by Cramer's rule; a (near-)singular matrix
+  // means a featureless frame, where zero motion is the only honest answer.
+  const det =
+    m00 * (m11 * m22 - m12 * m12) -
+    m01 * (m01 * m22 - m12 * m02) +
+    m02 * (m01 * m12 - m11 * m02);
+  if (Math.abs(det) < 1e-6) return { dx: 0, dy: 0, scale: 1 };
+
+  const dx =
+    (r0 * (m11 * m22 - m12 * m12) -
+      m01 * (r1 * m22 - m12 * r2) +
+      m02 * (r1 * m12 - m11 * r2)) / det;
+  const dy =
+    (m00 * (r1 * m22 - m12 * r2) -
+      r0 * (m01 * m22 - m12 * m02) +
+      m02 * (m01 * r2 - r1 * m02)) / det;
+  const s =
+    (m00 * (m11 * r2 - r1 * m12) -
+      m01 * (m01 * r2 - r1 * m02) +
+      r0 * (m01 * m12 - m11 * m02)) / det;
+
+  return { dx, dy, scale: 1 + s };
+}
+
+export interface MotionSample {
+  time: number;
+  /** Cumulative scale since the first frame (1 = no zoom). */
+  cumScale: number;
+  /** Cumulative translation since the first frame, analysis-res pixels. */
+  cumDx: number;
+  cumDy: number;
+}
+
+/**
+ * Chain per-frame-pair motion estimates into cumulative curves over a shot.
+ * Individual estimates are noisy; integration is what makes a slow 4-second
+ * punch-in visible as a clean monotonic scale ramp.
+ */
+export function accumulateMotion(
+  frames: Uint8Array[],
+  width: number,
+  height: number,
+  fps: number,
+  startTime = 0
+): MotionSample[] {
+  const samples: MotionSample[] = [
+    { time: startTime, cumScale: 1, cumDx: 0, cumDy: 0 },
+  ];
+  for (let i = 1; i < frames.length; i++) {
+    const { dx, dy, scale } = estimateFrameMotion(
+      frames[i - 1],
+      frames[i],
+      width,
+      height
+    );
+    const prev = samples[i - 1];
+    samples.push({
+      time: startTime + i / fps,
+      cumScale: prev.cumScale * scale,
+      cumDx: prev.cumDx + dx,
+      cumDy: prev.cumDy + dy,
+    });
+  }
+  return samples;
+}
+
+export type EasingName = "linear" | "easeIn" | "easeOut" | "easeInOut";
+
+const EASINGS: Record<EasingName, (t: number) => number> = {
+  linear: (t) => t,
+  easeIn: (t) => t * t,
+  easeOut: (t) => 1 - (1 - t) * (1 - t),
+  easeInOut: (t) => (t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t)),
+};
+
+/**
+ * Which standard easing curve best explains a measured 0..1 progress curve
+ * (assumed uniformly sampled in time). Returns the winner and its RMSE so
+ * callers can tell "clearly easeOut" from "basically a coin flip".
+ */
+export function fitEasing(
+  progress: number[]
+): { easing: EasingName; rmse: number } | null {
+  if (progress.length < 3) return null;
+  let best: EasingName = "linear";
+  let bestErr = Infinity;
+  for (const name of Object.keys(EASINGS) as EasingName[]) {
+    const fn = EASINGS[name];
+    let sum = 0;
+    for (let i = 0; i < progress.length; i++) {
+      const t = i / (progress.length - 1);
+      const d = progress[i] - fn(t);
+      sum += d * d;
+    }
+    const rmse = Math.sqrt(sum / progress.length);
+    if (rmse < bestErr) {
+      bestErr = rmse;
+      best = name;
+    }
+  }
+  return { easing: best, rmse: Math.round(bestErr * 1000) / 1000 };
+}
+
+export interface ShotMotion {
+  type: "static" | "zoom" | "pan" | "zoom+pan";
+  /** Net scale over the shot: 1.12 = punch-in to 112%, 0.9 = pull-out. */
+  scaleTo: number;
+  /** Net pan as a fraction of frame width/height (positive = content moved right/down). */
+  panX: number;
+  panY: number;
+  /** Best-fit easing of the dominant motion, when there is one. */
+  easing: EasingName | null;
+}
+
+const ZOOM_THRESHOLD = 0.04;
+const PAN_THRESHOLD = 0.05;
+
+/**
+ * Boil a shot's cumulative motion curves down to what an editor would say
+ * about it: static / zoom / pan, how far, and with what easing. Thresholds
+ * are deliberately conservative — handheld jitter integrates to noise well
+ * below them, while an intentional punch-in or pan sails past.
+ */
+export function summarizeShotMotion(
+  samples: MotionSample[],
+  width: number,
+  height: number
+): ShotMotion | null {
+  if (samples.length < 3) return null;
+  const last = samples[samples.length - 1];
+  const scaleTo = last.cumScale;
+  const panX = last.cumDx / width;
+  const panY = last.cumDy / height;
+
+  const zooms = Math.abs(scaleTo - 1) >= ZOOM_THRESHOLD;
+  const pans = Math.abs(panX) >= PAN_THRESHOLD || Math.abs(panY) >= PAN_THRESHOLD;
+
+  let type: ShotMotion["type"];
+  if (zooms && pans) type = "zoom+pan";
+  else if (zooms) type = "zoom";
+  else if (pans) type = "pan";
+  else type = "static";
+
+  // Fit easing on the dominant motion's normalized progress curve.
+  let easing: EasingName | null = null;
+  if (type !== "static") {
+    const useZoom = zooms && (!pans || Math.abs(scaleTo - 1) >= Math.max(Math.abs(panX), Math.abs(panY)));
+    const total = useZoom
+      ? scaleTo - 1
+      : Math.abs(panX) >= Math.abs(panY)
+        ? last.cumDx
+        : last.cumDy;
+    if (Math.abs(total) > 1e-9) {
+      const progress = samples.map((s) =>
+        useZoom
+          ? (s.cumScale - 1) / total
+          : (Math.abs(panX) >= Math.abs(panY) ? s.cumDx : s.cumDy) / total
+      );
+      easing = fitEasing(progress)?.easing ?? null;
+    }
+  }
+
+  return {
+    type,
+    scaleTo: Math.round(scaleTo * 1000) / 1000,
+    panX: Math.round(panX * 1000) / 1000,
+    panY: Math.round(panY * 1000) / 1000,
+    easing,
+  };
+}
+
 export type FramePosition = "start" | "mid" | "end";
 
 export interface PlannedFrame {
