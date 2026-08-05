@@ -12,6 +12,7 @@ import { generateVoiceover } from "./tools/generate-voiceover.js";
 import { scaffoldReel } from "./tools/scaffold-reel.js";
 import { renderReel } from "./tools/render-reel.js";
 import { reviewRender } from "./tools/review-render.js";
+import { openInStudio } from "./tools/open-in-studio.js";
 import { mimicMcpPrompt } from "./prompt.js";
 
 const server = new McpServer({ name: "mimic-mcp", version: "0.1.0" });
@@ -237,6 +238,28 @@ server.registerTool(
   async ({ project_dir, reference_video }) => {
     try {
       return ok(await reviewRender(project_dir, reference_video));
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "open_in_studio",
+  {
+    title: "Open in Remotion Studio",
+    description:
+      "Launch Remotion Studio for a scaffolded project and return its URL — the human handoff. " +
+      "The user can preview the reel, tweak every recipe field in Studio's props panel (captions, " +
+      "timing, zooms, transitions, colors), and export the final video themselves. " +
+      "Call this when the reel is close and the user wants to fine-tune or export interactively.",
+    inputSchema: {
+      project_dir: z.string().describe("A directory created by scaffold_reel"),
+    },
+  },
+  async ({ project_dir }) => {
+    try {
+      return ok(await openInStudio(project_dir));
     } catch (err) {
       return fail(err);
     }

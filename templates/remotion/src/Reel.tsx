@@ -10,50 +10,7 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import recipeJson from "../recipe.json";
-
-// The recipe's real shape (mirrors mimic-mcp's recipe schema). recipe.json's
-// INFERRED type only contains the keys this particular recipe happens to use,
-// so typing against it breaks on every optional field — cast once instead.
-type VideoTransition = {
-  kind: "dissolve" | "dip-to-black" | "dip-to-white" | "wipe" | "slide";
-  durationSeconds: number;
-  direction?: "left" | "right" | "up" | "down";
-};
-
-type Zoom = { from: number; to: number; focusX: number; focusY: number; easing?: string };
-
-type Segment = {
-  start: number;
-  end: number;
-  caption: string;
-  captionStyle: "hook" | "tip" | "plain";
-  image?: string;
-  backgroundStart?: number;
-  backgroundVideo?: string;
-  backgroundPosition?: string;
-  videoTransitionIn?: VideoTransition;
-  zoom?: Zoom;
-  speed?: number;
-  captionColor?: string;
-  captionFont?: string;
-  captionSize?: number;
-  transitionIn: "cut" | "fade" | "slide";
-  sound?: string;
-  soundVolume?: number;
-  captionAnimation: "none" | "karaoke" | "typewriter";
-  highlightColor?: string;
-  wordTimings?: number[];
-};
-
-type Recipe = {
-  output: { width: number; height: number; fps: number; durationSeconds: number };
-  background: { video: string; fit: string; muted: boolean };
-  music?: { file: string; volume: number };
-  segments: Segment[];
-};
-
-const recipe = recipeJson as unknown as Recipe;
+import type { Recipe, Segment, VideoTransition, Zoom } from "./recipeSchema";
 
 const TRANSITION_FRAMES = 12;
 const DEFAULT_HIGHLIGHT = "#ffe000";
@@ -402,7 +359,7 @@ const DipOverlay = ({
 const needsUnderlap = (t?: VideoTransition): boolean =>
   t != null && (t.kind === "dissolve" || t.kind === "wipe" || t.kind === "slide");
 
-export const Reel = () => {
+export const Reel = (recipe: Recipe) => {
   const { fps } = useVideoConfig();
 
   // Any segment with backgroundStart, its own backgroundVideo, or a zoom turns

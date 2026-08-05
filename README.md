@@ -20,7 +20,7 @@ The server gives the agent the tools to pull that off:
 
 | Tool | What it does |
 |------|--------------|
-| `analyze_reference` | Probes the reference video: duration, resolution, fps, scene cuts (adaptively thresholded, each classified as a **hard cut or fade/dissolve**), **on-screen graphic swaps** on held shots (stats cards cycling on the beat — with a frame extracted per state), average shot length, and **musical beat/onset timestamps (with a BPM estimate)** so cuts can land on the beat. Extracts start/mid/end frames per shot so the agent can *look* at the style and spot in-shot motion (punch-in zooms, pans) by comparing a shot's frames. |
+| `analyze_reference` | MEASURES the reference instead of guessing at it, and writes the result to a machine-readable **style spec**: scene cuts, each transition **fingerprinted** from its frames (hard cut, dissolve, dip-to-black/white, directional wipe — with on-screen duration), **in-shot motion** (punch-in/pan magnitude with fitted easing, via global gradient-flow estimation), **on-screen graphic swaps** on held shots, an **OCR'd caption track** (macOS Vision: every text's timing, position, size, case — plus a full-quality crop for font matching), and **musical beats (with BPM)**. Also extracts a **filmstrip contact sheet** per shot and a native-fps **burst strip** per transition, so even 2-3 frame flashes are visible to the agent's eyes. |
 | `transcribe_reference` | Transcribes the reference's spoken audio with **word-level timings**, so the agent sees its *script structure* (hook → build → payoff), not just its visuals. Word timings drop straight into karaoke captions. Needs a local whisper CLI. |
 | `extract_music` | Rips the audio track out of the reference so the new reel can use the same music. |
 
@@ -37,7 +37,8 @@ The server gives the agent the tools to pull that off:
 |------|--------------|
 | `scaffold_reel` | Generates a ready-to-edit [Remotion](https://remotion.dev) project from a **style recipe** — a JSON description of the reel (segments, captions, animations, transitions, zoom, sound, music) that the agent writes after studying the reference. |
 | `render_reel` | Renders the Remotion project to an mp4. Pass `quality: "draft"` for a fast half-resolution preview while iterating, `"final"` for the deliverable. |
-| `review_render` | Extracts one frame per segment from the render, paired with the same relative moment in the reference — so the agent can compare them side by side, catch what's off, and fix its own recipe. |
+| `review_render` | The measured QA loop: runs the render through the **same analyzer** as the reference and diffs the two style specs — cut timing, transition kinds, motion, caption timing/position/size — into a 0-100 **fidelity score** with actionable issues, each naming the recipe field to fix. Plus side-by-side frames per segment for the visual pass. |
+| `open_in_studio` | Launches **Remotion Studio** for the project and returns the URL — the human handoff. Preview the reel, tweak every recipe field in Studio's props panel (the composition is zod-schema'd), and export the final video interactively. |
 | `export_variants` | Re-frames the finished reel into other aspect ratios (9:16, 1:1, 4:5, 16:9) for cross-posting — center-crop or blur-padded. |
 
 **Reusable styles**
