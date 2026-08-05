@@ -18,12 +18,15 @@ export const presetSegmentSchema = z.object({
   captionAnimation: z.enum(["none", "karaoke", "typewriter"]).optional(),
   highlightColor: z.string().optional(),
   captionColor: z.string().optional(),
+  captionFont: z.string().optional(),
   captionSize: z.number().positive().optional(),
+  captionWeight: z.number().min(100).max(900).optional(),
   transitionIn: z.enum(["cut", "fade", "slide"]).optional(),
   zoom: z
     .object({
       from: z.number().positive(),
       to: z.number().positive(),
+      easing: z.enum(["linear", "easeIn", "easeOut", "easeInOut"]).optional(),
       focusX: z.number().min(0).max(1).optional(),
       focusY: z.number().min(0).max(1).optional(),
     })
@@ -69,12 +72,15 @@ export function extractPreset(recipe: Recipe, name: string, description: string)
       captionAnimation: s.captionAnimation === "none" ? undefined : s.captionAnimation,
       highlightColor: s.highlightColor,
       captionColor: s.captionColor,
+      captionFont: s.captionFont,
       captionSize: s.captionSize,
+      captionWeight: s.captionWeight,
       transitionIn: s.transitionIn === "cut" ? undefined : s.transitionIn,
       zoom: s.zoom
         ? {
             from: s.zoom.from,
             to: s.zoom.to,
+            easing: s.zoom.easing === "linear" ? undefined : s.zoom.easing,
             focusX: s.zoom.focusX,
             focusY: s.zoom.focusY,
           }
