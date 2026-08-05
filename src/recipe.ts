@@ -66,10 +66,28 @@ export const segmentSchema = z.object({
         "The classic screen-recording move: zoom into the part of the screen that matters " +
         "(set focusX/focusY to the active region). Each zoomed segment gets its own background layer."
     ),
+  speed: z
+    .number()
+    .positive()
+    .max(16)
+    .optional()
+    .describe(
+      "Playback rate for THIS segment's background footage. 2 = twice as fast — the " +
+        "speed-ramp/timelapse move reels use to compress long takes so the edit keeps up " +
+        "with the music. Default 1 (normal speed). The segment consumes " +
+        "(end - start) * speed seconds of source footage from backgroundStart."
+    ),
   captionColor: z
     .string()
     .optional()
     .describe("CSS color overriding the default white caption"),
+  captionFont: z
+    .string()
+    .optional()
+    .describe(
+      "CSS font-family overriding the default sans-serif — e.g. " +
+        "\"Georgia, 'Times New Roman', serif\" for the editorial-serif POV look."
+    ),
   captionSize: z
     .number()
     .positive()

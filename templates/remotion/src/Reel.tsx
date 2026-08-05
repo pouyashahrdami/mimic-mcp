@@ -152,6 +152,7 @@ const Caption = ({
   const image = "image" in segment ? segment.image : undefined;
   const color = "captionColor" in segment ? segment.captionColor : undefined;
   const size = "captionSize" in segment ? segment.captionSize : undefined;
+  const font = "captionFont" in segment ? segment.captionFont : undefined;
 
   const captionEl = (
     <div
@@ -163,6 +164,7 @@ const Caption = ({
         ...captionLooks[segment.captionStyle],
         ...(color ? { color } : {}),
         ...(size ? { fontSize: size } : {}),
+        ...(font ? { fontFamily: font } : {}),
       }}
     >
       <CaptionText segment={segment} durationInFrames={durationInFrames} />
@@ -244,6 +246,7 @@ const SegmentBackground = ({
   startFrom,
   position,
   zoom,
+  speed,
   durationInFrames,
 }: {
   src: string;
@@ -252,6 +255,7 @@ const SegmentBackground = ({
   startFrom: number;
   position?: string;
   zoom?: Zoom;
+  speed?: number;
   durationInFrames: number;
 }) => {
   const frame = useCurrentFrame();
@@ -260,6 +264,7 @@ const SegmentBackground = ({
       src={staticFile(src)}
       muted={muted}
       startFrom={startFrom}
+      playbackRate={speed ?? 1}
       style={backgroundStyle(fit, position)}
     />
   );
@@ -292,7 +297,8 @@ export const Reel = () => {
     (s) =>
       ("backgroundStart" in s && s.backgroundStart != null) ||
       ("backgroundVideo" in s && s.backgroundVideo != null) ||
-      ("zoom" in s && s.zoom != null)
+      ("zoom" in s && s.zoom != null) ||
+      ("speed" in s && s.speed != null)
   );
 
   return (
@@ -317,6 +323,7 @@ export const Reel = () => {
         const bgPosition =
           "backgroundPosition" in segment ? segment.backgroundPosition : undefined;
         const zoom = ("zoom" in segment ? segment.zoom : undefined) as Zoom | undefined;
+        const speed = "speed" in segment ? segment.speed : undefined;
         const sound = "sound" in segment ? segment.sound : undefined;
         const soundVolume =
           ("soundVolume" in segment ? segment.soundVolume : undefined) ?? 0.7;
@@ -335,6 +342,7 @@ export const Reel = () => {
                 startFrom={Math.round((bgStart ?? segment.start) * fps)}
                 position={bgPosition}
                 zoom={zoom}
+                speed={speed}
                 durationInFrames={durationInFrames}
               />
             )}

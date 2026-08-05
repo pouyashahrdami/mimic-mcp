@@ -40,6 +40,32 @@ describe("parseRecipe", () => {
     expect(() => parseRecipe(JSON.stringify(bad))).toThrow("wordTimings");
   });
 
+  it("accepts per-segment speed and captionFont", () => {
+    const withStyle = structuredClone(minimalRecipe) as typeof minimalRecipe & {
+      segments: Record<string, unknown>[];
+    };
+    withStyle.segments[0] = {
+      start: 0,
+      end: 5,
+      caption: "sped up",
+      speed: 2.5,
+      captionFont: "Georgia, 'Times New Roman', serif",
+    };
+    const recipe = parseRecipe(JSON.stringify(withStyle));
+    expect(recipe.segments[0].speed).toBe(2.5);
+    expect(recipe.segments[0].captionFont).toContain("Georgia");
+  });
+
+  it("rejects a non-positive or absurd speed", () => {
+    for (const speed of [0, -1, 40]) {
+      const bad = structuredClone(minimalRecipe) as typeof minimalRecipe & {
+        segments: Record<string, unknown>[];
+      };
+      bad.segments[0] = { start: 0, end: 5, caption: "x", speed };
+      expect(() => parseRecipe(JSON.stringify(bad))).toThrow();
+    }
+  });
+
   it("rejects a recipe whose last segment overruns the output duration", () => {
     const bad = structuredClone(minimalRecipe);
     bad.segments[0] = { start: 0, end: 11, caption: "x" };
