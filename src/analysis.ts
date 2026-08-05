@@ -621,6 +621,46 @@ export function summarizeShotMotion(
   };
 }
 
+export interface FilmstripPlan {
+  /** Sampling rate that yields the wanted number of frames over the span. */
+  fps: number;
+  /** Timestamp of each tile, left-to-right, top-to-bottom. */
+  frameTimes: number[];
+  cols: number;
+  rows: number;
+}
+
+/**
+ * Plan a tiled contact sheet over [start, end): which sampling fps produces
+ * `maxFrames` evenly spaced tiles, when each tile lands, and the grid shape.
+ * When the span at `nativeFps` has fewer frames than `maxFrames`, every
+ * native frame is used — a flash cut's 4 frames should all be visible.
+ */
+export function planFilmstrip(
+  start: number,
+  end: number,
+  nativeFps: number,
+  { maxFrames = 12, cols = 4 } = {}
+): FilmstripPlan | null {
+  const span = end - start;
+  if (span <= 0 || nativeFps <= 0) return null;
+  const nativeCount = Math.floor(span * nativeFps + 1e-6);
+  if (nativeCount < 2) return null;
+  const count = Math.min(maxFrames, nativeCount);
+  const fps = count / span;
+  const frameTimes = Array.from(
+    { length: count },
+    (_, i) => Math.round((start + i / fps) * 100) / 100
+  );
+  const gridCols = Math.min(cols, count);
+  return {
+    fps: Math.round(fps * 1000) / 1000,
+    frameTimes,
+    cols: gridCols,
+    rows: Math.ceil(count / gridCols),
+  };
+}
+
 export type FramePosition = "start" | "mid" | "end";
 
 export interface PlannedFrame {

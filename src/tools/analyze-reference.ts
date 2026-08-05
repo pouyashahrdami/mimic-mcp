@@ -4,6 +4,7 @@ import {
   accumulateMotion,
   estimateBpm,
   fingerprintTransition,
+  planFilmstrip,
   planShotFrames,
   shotsFromCuts,
   summarizeShotMotion,
@@ -16,6 +17,7 @@ import {
   decodeShotForMotion,
   detectBeats,
   detectSceneCuts,
+  extractFilmstrip,
   extractFrame,
   probe,
 } from "../ffmpeg.js";
@@ -30,11 +32,25 @@ export interface ShotFrame {
   file: string;
 }
 
+export interface Filmstrip {
+  file: string;
+  /** Timestamp of each tile, reading left-to-right, top-to-bottom. */
+  frameTimes: number[];
+  cols: number;
+  rows: number;
+}
+
 export interface ShotAnalysis {
   start: number;
   end: number;
   seconds: number;
   frames: ShotFrame[];
+  /**
+   * Contact sheet of the whole shot: evenly spaced tiles in one image, so
+   * the motion arc (zoom, pan, gesture) reads at a glance instead of being
+   * inferred from three separated stills.
+   */
+  filmstrip: Filmstrip | null;
   /**
    * MEASURED in-shot motion (gradient-flow estimation, not eyeballed from
    * frames): zoom/pan magnitude with fitted easing. Null for unsampled or
@@ -58,7 +74,10 @@ export interface ReferenceAnalysis {
    * around it: hard cut, dissolve, dip-to-black/white, or directional wipe —
    * with its measured on-screen duration.
    */
-  transitions: MeasuredTransition[];
+  transitions: (MeasuredTransition & {
+    /** Native-fps burst strip across the transition — every frame visible. */
+    filmstrip?: Filmstrip;
+  })[];
   /**
    * On-screen graphic swaps on a held shot (stats cards, screenshots): when
    * they happened, with a frame extracted just after each swap so you can see
@@ -127,6 +146,7 @@ export async function analyzeReference(
     end: Math.round(s.end * 100) / 100,
     seconds: Math.round((s.end - s.start) * 100) / 100,
     frames: [],
+    filmstrip: null,
     motion: null,
   }));
 
@@ -153,9 +173,11 @@ export async function analyzeReference(
     shots[shotIndex].motion = summarizeShotMotion(samples, width, height);
   }
 
-  // Fingerprint every shot-to-shot transition from the frames around it.
+  // Fingerprint every shot-to-shot transition from the frames around it, and
+  // pair it with a native-fps burst strip so even a 3-frame flash is visible.
   const TRANSITION_WINDOW = 0.5;
-  const transitions: MeasuredTransition[] = [];
+  const BURST_WINDOW = 0.25;
+  const transitions: ReferenceAnalysis["transitions"] = [];
   for (const t of cuts) {
     const start = Math.max(0, t - TRANSITION_WINDOW);
     const end = Math.min(info.videoSeconds, t + TRANSITION_WINDOW);
@@ -166,14 +188,30 @@ export async function analyzeReference(
       info.fps
     );
     const fp = fingerprintTransition(frames, width, height, fps);
-    if (fp) {
-      transitions.push({
-        time: Math.round(t * 100) / 100,
-        kind: fp.kind,
-        durationSeconds: fp.durationSeconds,
-        ...(fp.direction ? { direction: fp.direction } : {}),
-      });
+    if (!fp) continue;
+
+    const burstStart = Math.max(0, t - BURST_WINDOW);
+    const burstEnd = Math.min(info.videoSeconds, t + BURST_WINDOW);
+    const plan = planFilmstrip(burstStart, burstEnd, info.fps);
+    let filmstrip: Filmstrip | undefined;
+    if (plan) {
+      const file = path.join(outDir, `transition-${t.toFixed(2)}s-strip.jpg`);
+      await extractFilmstrip(videoPath, burstStart, file, plan);
+      filmstrip = {
+        file,
+        frameTimes: plan.frameTimes,
+        cols: plan.cols,
+        rows: plan.rows,
+      };
     }
+
+    transitions.push({
+      time: Math.round(t * 100) / 100,
+      kind: fp.kind,
+      durationSeconds: fp.durationSeconds,
+      ...(fp.direction ? { direction: fp.direction } : {}),
+      ...(filmstrip ? { filmstrip } : {}),
+    });
   }
   // One frame just after each overlay swap, so every state of an on-screen
   // graphic is visible — a single mid-shot frame only ever catches one.
@@ -192,6 +230,24 @@ export async function analyzeReference(
     const file = path.join(outDir, `overlay-${t.toFixed(2)}s.jpg`);
     await extractFrame(videoPath, at, file);
     overlayChanges.push({ atSeconds: Math.round(t * 100) / 100, file });
+  }
+
+  // One contact sheet per sampled shot: the whole motion arc in one image.
+  for (const shotIndex of sampledIndices) {
+    const shot = shotRanges[shotIndex];
+    const plan = planFilmstrip(shot.start, shot.end, info.fps);
+    if (!plan) continue;
+    const file = path.join(
+      outDir,
+      `shot-${String(shotIndex + 1).padStart(2, "0")}-strip.jpg`
+    );
+    await extractFilmstrip(videoPath, shot.start, file, plan);
+    shots[shotIndex].filmstrip = {
+      file,
+      frameTimes: plan.frameTimes,
+      cols: plan.cols,
+      rows: plan.rows,
+    };
   }
 
   const keyframes: { atSeconds: number; file: string }[] = [];
@@ -214,9 +270,10 @@ export async function analyzeReference(
   const sampledShots = shots.filter((s) => s.frames.length > 0).length;
   if (sampledShots > 0) {
     notes.push(
-      "Each sampled shot has start/mid/end frames. Compare them per shot: the subject growing " +
-        "from start to end = punch-in zoom (set that segment's `zoom`), the framing sliding " +
-        "sideways = a pan. Identical frames = a static shot."
+      "Each sampled shot has a `filmstrip` contact sheet (tiles read left-to-right, top-to-" +
+        "bottom; `frameTimes` gives each tile's timestamp) — open it to see the shot's whole " +
+        "arc in one image. The start/mid/end stills are full-resolution for detail checks. " +
+        "Each transition has a native-fps burst strip, so even 2-3 frame flashes are visible."
     );
   }
   if (sampledShots < shots.length) {
@@ -309,7 +366,7 @@ export async function analyzeReference(
     height: info.height,
     fps: info.fps,
     shots: shots.map((s) => ({ start: s.start, end: s.end, motion: s.motion })),
-    transitions,
+    transitions: transitions.map(({ filmstrip: _strip, ...t }) => t),
     overlayChanges: overlayTimes.map((t) => Math.round(t * 100) / 100),
     beats,
     bpm,

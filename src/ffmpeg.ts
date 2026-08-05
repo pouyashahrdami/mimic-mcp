@@ -403,6 +403,31 @@ export async function reframe(
   ]);
 }
 
+/**
+ * Render a filmstrip contact sheet: `plan.frameTimes.length` tiles sampled
+ * evenly across the span, tiled into a `plan.cols` x `plan.rows` grid in one
+ * JPEG. One image shows a whole motion arc — far easier to read punch-ins,
+ * pans, and transitions from than separated stills.
+ */
+export async function extractFilmstrip(
+  videoPath: string,
+  start: number,
+  outPath: string,
+  plan: { fps: number; frameTimes: number[]; cols: number; rows: number },
+  tileWidth = 270
+): Promise<void> {
+  await exec("ffmpeg", [
+    "-y",
+    "-ss", String(start),
+    "-i", videoPath,
+    "-vf",
+    `fps=${plan.fps},scale=${tileWidth}:-1,tile=${plan.cols}x${plan.rows}`,
+    "-frames:v", "1",
+    "-q:v", "3",
+    outPath,
+  ]);
+}
+
 export async function extractFrame(
   videoPath: string,
   atSeconds: number,

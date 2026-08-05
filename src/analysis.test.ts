@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planShotFrames, shotsFromCuts } from "./analysis.js";
+import { planFilmstrip, planShotFrames, shotsFromCuts } from "./analysis.js";
 
 describe("shotsFromCuts", () => {
   it("returns one full-length shot when there are no cuts", () => {
@@ -69,5 +69,29 @@ describe("planShotFrames", () => {
     expect(sampledShots).toHaveLength(8);
     expect(sampledShots[0]).toBe(0);
     expect(sampledShots.at(-1)).toBeGreaterThanOrEqual(30);
+  });
+});
+
+describe("planFilmstrip", () => {
+  it("samples an even grid across a normal shot", () => {
+    const plan = planFilmstrip(2, 6, 30)!;
+    expect(plan.frameTimes).toHaveLength(12);
+    expect(plan.frameTimes[0]).toBe(2);
+    expect(plan.frameTimes[11]).toBeLessThan(6);
+    expect(plan.cols).toBe(4);
+    expect(plan.rows).toBe(3);
+    expect(plan.fps).toBeCloseTo(3, 1);
+  });
+
+  it("uses every native frame for a flash cut shorter than the budget", () => {
+    // 0.2s at 30fps = 6 native frames; all of them beat 12 interpolated ones.
+    const plan = planFilmstrip(1, 1.2, 30)!;
+    expect(plan.frameTimes.length).toBe(6);
+    expect(plan.fps).toBeCloseTo(30, 0);
+  });
+
+  it("returns null for spans too short to strip", () => {
+    expect(planFilmstrip(1, 1.02, 30)).toBeNull();
+    expect(planFilmstrip(5, 5, 30)).toBeNull();
   });
 });
