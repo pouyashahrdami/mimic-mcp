@@ -20,7 +20,7 @@ The server gives the agent the tools to pull that off:
 
 | Tool | What it does |
 |------|--------------|
-| `analyze_reference` | Probes the reference video: duration, resolution, fps, scene cuts, average shot length, and **musical beat/onset timestamps (with a BPM estimate)** so cuts can land on the beat. Extracts keyframes at every cut so the agent can *look* at the style. |
+| `analyze_reference` | Probes the reference video: duration, resolution, fps, scene cuts, average shot length, and **musical beat/onset timestamps (with a BPM estimate)** so cuts can land on the beat. Extracts start/mid/end frames per shot so the agent can *look* at the style and spot in-shot motion (punch-in zooms, pans) by comparing a shot's frames. |
 | `transcribe_reference` | Transcribes the reference's spoken audio with **word-level timings**, so the agent sees its *script structure* (hook → build → payoff), not just its visuals. Word timings drop straight into karaoke captions. Needs a local whisper CLI. |
 | `extract_music` | Rips the audio track out of the reference so the new reel can use the same music. |
 
@@ -57,8 +57,8 @@ Plus a `mimic-mcp` **prompt** that shows up as a slash command in Claude Code (`
 
 The agent then:
 
-1. Calls `analyze_reference` on the reel you like — gets scene cuts + keyframes.
-2. Looks at the keyframes, figures out what's actually going on: "guy coding in the
+1. Calls `analyze_reference` on the reel you like — gets scene cuts + per-shot frames.
+2. Looks at the frames, figures out what's actually going on: "guy coding in the
    background, big center captions, hard cuts every ~1.8s, tips appearing one by one".
 3. Calls `extract_music` to grab the soundtrack.
 4. Writes a *style recipe* — your footage as the background, your script as the

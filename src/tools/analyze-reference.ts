@@ -1,9 +1,23 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
+import { planShotFrames, shotsFromCuts, type FramePosition } from "../analysis.js";
 import { detectBeats, detectSceneCuts, extractFrame, probe } from "../ffmpeg.js";
 
-// More frames than this stops being "study the style" and starts being noise.
-const MAX_KEYFRAMES = 12;
+// More shots than this stops being "study the style" and starts being noise.
+const MAX_SAMPLED_SHOTS = 8;
+
+export interface ShotFrame {
+  position: FramePosition;
+  atSeconds: number;
+  file: string;
+}
+
+export interface ShotAnalysis {
+  start: number;
+  end: number;
+  seconds: number;
+  frames: ShotFrame[];
+}
 
 export interface ReferenceAnalysis {
   video: string;
@@ -16,6 +30,7 @@ export interface ReferenceAnalysis {
   averageShotSeconds: number;
   beats: number[];
   bpm: number | null;
+  shots: ShotAnalysis[];
   keyframes: { atSeconds: number; file: string }[];
   notes: string[];
 }
@@ -42,24 +57,28 @@ export async function analyzeReference(
   );
   await mkdir(outDir, { recursive: true });
 
-  // Sample the middle of each shot — cut frames themselves are often mid-transition.
-  const shotStarts = [0, ...cuts];
-  const shotEnds = [...cuts, info.durationSeconds];
-  let sampleTimes = shotStarts.map((s, i) => (s + shotEnds[i]) / 2);
+  // Start/mid/end frames per shot: motion inside a shot (the classic slow
+  // punch-in zoom, pans) is invisible in a single mid frame but obvious when
+  // the shot's frames are compared.
+  const shotRanges = shotsFromCuts(cuts, info.durationSeconds);
+  const plannedFrames = planShotFrames(shotRanges, MAX_SAMPLED_SHOTS);
 
-  if (sampleTimes.length > MAX_KEYFRAMES) {
-    const step = sampleTimes.length / MAX_KEYFRAMES;
-    sampleTimes = Array.from(
-      { length: MAX_KEYFRAMES },
-      (_, i) => sampleTimes[Math.floor(i * step)]
+  const shots: ShotAnalysis[] = shotRanges.map((s) => ({
+    start: Math.round(s.start * 100) / 100,
+    end: Math.round(s.end * 100) / 100,
+    seconds: Math.round((s.end - s.start) * 100) / 100,
+    frames: [],
+  }));
+  const keyframes: { atSeconds: number; file: string }[] = [];
+  for (const f of plannedFrames) {
+    const file = path.join(
+      outDir,
+      `shot-${String(f.shotIndex + 1).padStart(2, "0")}-${f.position}-${f.atSeconds.toFixed(2)}s.jpg`
     );
-  }
-
-  const keyframes = [];
-  for (const t of sampleTimes) {
-    const file = path.join(outDir, `frame-${t.toFixed(2)}s.jpg`);
-    await extractFrame(videoPath, t, file);
-    keyframes.push({ atSeconds: Math.round(t * 100) / 100, file });
+    await extractFrame(videoPath, f.atSeconds, file);
+    const atSeconds = Math.round(f.atSeconds * 100) / 100;
+    shots[f.shotIndex].frames.push({ position: f.position, atSeconds, file });
+    keyframes.push({ atSeconds, file });
   }
 
   const shotCount = cuts.length + 1;
@@ -67,6 +86,20 @@ export async function analyzeReference(
     Math.round((info.durationSeconds / shotCount) * 100) / 100;
 
   const notes: string[] = [];
+  const sampledShots = shots.filter((s) => s.frames.length > 0).length;
+  if (sampledShots > 0) {
+    notes.push(
+      "Each sampled shot has start/mid/end frames. Compare them per shot: the subject growing " +
+        "from start to end = punch-in zoom (set that segment's `zoom`), the framing sliding " +
+        "sideways = a pan. Identical frames = a static shot."
+    );
+  }
+  if (sampledShots < shots.length) {
+    notes.push(
+      `${shots.length} shots detected but only ${sampledShots} were sampled for frames ` +
+        "(evenly spread) to keep the image count reviewable."
+    );
+  }
   if (averageShotSeconds < 0.4 && cuts.length > 6) {
     notes.push(
       "Extremely rapid cuts detected. This is either camera motion fooling the detector " +
@@ -102,6 +135,7 @@ export async function analyzeReference(
     averageShotSeconds,
     beats,
     bpm,
+    shots,
     keyframes,
     notes,
   };

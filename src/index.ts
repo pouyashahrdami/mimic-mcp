@@ -48,7 +48,8 @@ server.registerTool(
     title: "Analyze reference reel",
     description:
       "Probe a reference video: duration, resolution, fps, scene cuts, average shot length. " +
-      "Extracts keyframe images at each shot so you can look at the style. " +
+      "Extracts start/mid/end frames per shot so you can look at the style AND spot in-shot " +
+      "motion (punch-in zooms, pans) by comparing a shot's frames. " +
       "Returns JSON with paths to the extracted frames — open them.",
     inputSchema: { video: z.string().describe("Absolute path to the reference video") },
   },

@@ -19,9 +19,12 @@ Work through these steps in order:
 1. Call the analyze_reference tool on the reference video. It returns scene cuts,
    pacing stats, and keyframe image files.
 
-2. Open and LOOK at the keyframe images. Describe to yourself what the reference is
-   actually doing: what's in the background, where captions sit, how big they are,
-   how often shots change, what transitions connect them, the overall mood.
+2. Open and LOOK at the extracted frames. Each sampled shot has start/mid/end
+   frames — compare them per shot: if the subject grows across the shot it's a
+   punch-in zoom (copy it with that segment's \`zoom\`), if the framing slides it's
+   a pan. Then describe to yourself what the reference is actually doing: what's
+   in the background, where captions sit, how big they are, how often shots
+   change, what transitions connect them, the overall mood.
 
 3. If the reference has audio, call extract_music on it to grab the soundtrack.
 
