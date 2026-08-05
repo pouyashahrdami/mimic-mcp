@@ -29,7 +29,13 @@ async function exec(binary: "ffmpeg" | "ffprobe", args: string[]) {
 }
 
 export interface VideoInfo {
+  /** Container duration — the longest stream, often the audio. */
   durationSeconds: number;
+  /**
+   * Duration of the video stream itself. Can be shorter than the container
+   * when the audio runs longer; frames only exist up to here.
+   */
+  videoSeconds: number;
   width: number;
   height: number;
   fps: number;
@@ -57,8 +63,10 @@ export async function probe(videoPath: string): Promise<VideoInfo> {
   const [num, den] = String(video.avg_frame_rate ?? "30/1").split("/").map(Number);
   const fps = den ? num / den : 30;
 
+  const durationSeconds = Number(data.format?.duration ?? 0);
   return {
-    durationSeconds: Number(data.format?.duration ?? 0),
+    durationSeconds,
+    videoSeconds: Number(video.duration ?? durationSeconds) || durationSeconds,
     width: Number(video.width),
     height: Number(video.height),
     fps: Math.round(fps * 100) / 100,

@@ -13,22 +13,32 @@ export interface ColorSegment {
   seconds: number;
 }
 
-/** Concatenate flat color clips into one video — hard cuts at known times. */
+/**
+ * Concatenate flat color clips into one video — hard cuts at known times.
+ * `audioSeconds` adds a silent audio track of that length; longer than the
+ * video, it reproduces the common real-world case where the container
+ * duration outruns the last video frame.
+ */
 export async function makeCutVideo(
   outPath: string,
   segments: ColorSegment[],
-  { size = "160x288", fps = 30 } = {}
+  { size = "160x288", fps = 30, audioSeconds = 0 } = {}
 ): Promise<void> {
   const inputs = segments.flatMap((s) => [
     "-f", "lavfi",
     "-i", `color=c=${s.color}:s=${size}:d=${s.seconds}:r=${fps}`,
   ]);
+  const audioInputs = audioSeconds
+    ? ["-f", "lavfi", "-i", `anullsrc=r=22050:cl=stereo:d=${audioSeconds}`]
+    : [];
   const labels = segments.map((_, i) => `[${i}:v]`).join("");
   await run("ffmpeg", [
     "-y",
     ...inputs,
+    ...audioInputs,
     "-filter_complex", `${labels}concat=n=${segments.length}:v=1:a=0[v]`,
     "-map", "[v]",
+    ...(audioSeconds ? ["-map", `${segments.length}:a`] : []),
     outPath,
   ]);
 }

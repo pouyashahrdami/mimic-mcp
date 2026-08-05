@@ -56,4 +56,20 @@ describe("analyzeReference", () => {
     const shotFrameFiles = analysis.shots.flatMap((s) => s.frames.map((f) => f.file));
     expect(analysis.keyframes.map((k) => k.file)).toEqual(shotFrameFiles);
   });
+
+  // Regression: when the audio stream outruns the video stream, frame
+  // extraction must not seek past the last video frame.
+  it("plans frames within the video stream when the audio runs longer", async () => {
+    const video = path.join(workDir, "audio-longer.mp4");
+    await makeCutVideo(video, [{ color: "gray", seconds: 4 }], { audioSeconds: 5 });
+    const a = await analyzeReference(video, workDir);
+    expect(a.durationSeconds).toBeGreaterThan(4.5);
+    for (const shot of a.shots) {
+      expect(shot.end).toBeLessThanOrEqual(4.1);
+      for (const frame of shot.frames) {
+        const info = await stat(frame.file);
+        expect(info.size).toBeGreaterThan(0);
+      }
+    }
+  }, 60_000);
 });

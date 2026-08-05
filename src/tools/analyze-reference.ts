@@ -82,8 +82,9 @@ export async function analyzeReference(
 
   // Start/mid/end frames per shot: motion inside a shot (the classic slow
   // punch-in zoom, pans) is invisible in a single mid frame but obvious when
-  // the shot's frames are compared.
-  const shotRanges = shotsFromCuts(cuts, info.durationSeconds);
+  // the shot's frames are compared. Shots span the VIDEO stream, not the
+  // container — audio often runs longer and there are no frames out there.
+  const shotRanges = shotsFromCuts(cuts, info.videoSeconds);
   const plannedFrames = planShotFrames(shotRanges, MAX_SAMPLED_SHOTS);
 
   const shots: ShotAnalysis[] = shotRanges.map((s) => ({
@@ -106,7 +107,7 @@ export async function analyzeReference(
 
   const shotCount = cuts.length + 1;
   const averageShotSeconds =
-    Math.round((info.durationSeconds / shotCount) * 100) / 100;
+    Math.round((info.videoSeconds / shotCount) * 100) / 100;
 
   const notes: string[] = [];
   const sampledShots = shots.filter((s) => s.frames.length > 0).length;
