@@ -20,7 +20,7 @@ The server gives the agent the tools to pull that off:
 
 | Tool | What it does |
 |------|--------------|
-| `analyze_reference` | Probes the reference video: duration, resolution, fps, scene cuts (adaptively thresholded, each classified as a **hard cut or fade/dissolve**), average shot length, and **musical beat/onset timestamps (with a BPM estimate)** so cuts can land on the beat. Extracts start/mid/end frames per shot so the agent can *look* at the style and spot in-shot motion (punch-in zooms, pans) by comparing a shot's frames. |
+| `analyze_reference` | Probes the reference video: duration, resolution, fps, scene cuts (adaptively thresholded, each classified as a **hard cut or fade/dissolve**), **on-screen graphic swaps** on held shots (stats cards cycling on the beat — with a frame extracted per state), average shot length, and **musical beat/onset timestamps (with a BPM estimate)** so cuts can land on the beat. Extracts start/mid/end frames per shot so the agent can *look* at the style and spot in-shot motion (punch-in zooms, pans) by comparing a shot's frames. |
 | `transcribe_reference` | Transcribes the reference's spoken audio with **word-level timings**, so the agent sees its *script structure* (hook → build → payoff), not just its visuals. Word timings drop straight into karaoke captions. Needs a local whisper CLI. |
 | `extract_music` | Rips the audio track out of the reference so the new reel can use the same music. |
 

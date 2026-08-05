@@ -57,8 +57,12 @@ export function parseScdetSamples(stderr: string): ScdetSample[] {
 export interface SceneCut {
   time: number;
   score: number;
-  /** Measured, not guessed: "cut" = single-frame spike, "fade" = a dissolve. */
-  type: "cut" | "fade";
+  /**
+   * Measured, not guessed: "cut" = full-frame single-frame spike, "fade" = a
+   * dissolve, "overlay" = a small-area change on an otherwise static shot —
+   * an on-screen card/graphic swapping while the camera holds.
+   */
+  type: "cut" | "fade" | "overlay";
 }
 
 function median(values: number[]): number {
@@ -74,13 +78,20 @@ function median(values: number[]): number {
  *   double detections that inflate the cut count;
  * - cut vs fade classification from the mafd profile after each detection —
  *   a hard cut's frame difference collapses immediately, a dissolve's stays
- *   near the peak for the length of the fade.
+ *   near the peak for the length of the fade;
+ * - a second, lower tier for "overlay" changes: on near-static footage the
+ *   noise baseline sits far below the full-cut floor, and a sharp spike in
+ *   between the two is an on-screen graphic swapping (a stats card, a
+ *   screenshot), not a scene change. On busy footage the adaptive baseline
+ *   rises past the floor and this tier naturally disappears.
  */
 export function pickSceneCuts(
   samples: ScdetSample[],
   {
     floor = 8,
+    minorFloor = 1.5,
     madK = 6,
+    minorMadK = 8,
     minGapSeconds = 0.15,
     fadeWindowSeconds = 0.35,
   } = {}
@@ -91,11 +102,12 @@ export function pickSceneCuts(
   const med = median(scores);
   const mad = median(scores.map((s) => Math.abs(s - med)));
   const threshold = Math.max(floor, med + madK * mad);
+  const minorThreshold = Math.min(threshold, Math.max(minorFloor, med + minorMadK * mad));
 
   const candidates: number[] = [];
   for (let i = 0; i < samples.length; i++) {
     const s = samples[i].score;
-    if (s < threshold) continue;
+    if (s < minorThreshold) continue;
     const prev = i > 0 ? samples[i - 1].score : -Infinity;
     const next = i + 1 < samples.length ? samples[i + 1].score : -Infinity;
     if (s >= prev && s > next) candidates.push(i);
@@ -113,11 +125,16 @@ export function pickSceneCuts(
 
   return deduped.map((idx) => {
     const { time, score, mafd } = samples[idx];
-    const after = samples
-      .filter((s, j) => j > idx && s.time - time <= fadeWindowSeconds)
-      .map((s) => s.mafd);
-    const sustained = after.length ? median(after) : 0;
-    const type = mafd > 0 && sustained >= mafd * 0.5 ? "fade" : "cut";
+    let type: SceneCut["type"];
+    if (score < threshold) {
+      type = "overlay";
+    } else {
+      const after = samples
+        .filter((s, j) => j > idx && s.time - time <= fadeWindowSeconds)
+        .map((s) => s.mafd);
+      const sustained = after.length ? median(after) : 0;
+      type = mafd > 0 && sustained >= mafd * 0.5 ? "fade" : "cut";
+    }
     return {
       time: Math.round(time * 100) / 100,
       score: Math.round(score * 10) / 10,

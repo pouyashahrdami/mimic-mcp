@@ -34,8 +34,14 @@ export interface ReferenceAnalysis {
   fps: number;
   hasAudio: boolean;
   sceneCuts: number[];
-  /** Each detected cut with its score and measured type (hard cut vs fade). */
+  /** Every detection with its score and measured type (cut, fade, overlay). */
   cuts: SceneCut[];
+  /**
+   * On-screen graphic swaps on a held shot (stats cards, screenshots): when
+   * they happened, with a frame extracted just after each swap so you can see
+   * every state of the graphic.
+   */
+  overlayChanges: { atSeconds: number; file: string }[];
   averageShotSeconds: number;
   beats: number[];
   bpm: number | null;
@@ -57,7 +63,10 @@ export async function analyzeReference(
 ): Promise<ReferenceAnalysis> {
   const info = await probe(videoPath);
   const detectedCuts = await detectSceneCuts(videoPath);
-  const cuts = detectedCuts.map((c) => c.time);
+  // Overlay changes are graphics swapping on a held shot — they subdivide the
+  // content, not the camera work, so shots and pacing stats ignore them.
+  const cuts = detectedCuts.filter((c) => c.type !== "overlay").map((c) => c.time);
+  const overlayTimes = detectedCuts.filter((c) => c.type === "overlay").map((c) => c.time);
   let beats: number[] = [];
   let bpm: number | null = null;
   let beatMethod: ReferenceAnalysis["beatMethod"] = null;
@@ -93,6 +102,25 @@ export async function analyzeReference(
     seconds: Math.round((s.end - s.start) * 100) / 100,
     frames: [],
   }));
+  // One frame just after each overlay swap, so every state of an on-screen
+  // graphic is visible — a single mid-shot frame only ever catches one.
+  const MAX_OVERLAY_FRAMES = 12;
+  let sampledOverlayTimes = overlayTimes;
+  if (sampledOverlayTimes.length > MAX_OVERLAY_FRAMES) {
+    const step = sampledOverlayTimes.length / MAX_OVERLAY_FRAMES;
+    sampledOverlayTimes = Array.from(
+      { length: MAX_OVERLAY_FRAMES },
+      (_, i) => sampledOverlayTimes[Math.floor(i * step)]
+    );
+  }
+  const overlayChanges: { atSeconds: number; file: string }[] = [];
+  for (const t of sampledOverlayTimes) {
+    const at = Math.min(t + 0.1, info.videoSeconds - 1 / info.fps);
+    const file = path.join(outDir, `overlay-${t.toFixed(2)}s.jpg`);
+    await extractFrame(videoPath, at, file);
+    overlayChanges.push({ atSeconds: Math.round(t * 100) / 100, file });
+  }
+
   const keyframes: { atSeconds: number; file: string }[] = [];
   for (const f of plannedFrames) {
     const file = path.join(
@@ -137,6 +165,14 @@ export async function analyzeReference(
       "No hard cuts detected — the reference is likely a single continuous shot, or uses only soft transitions."
     );
   }
+  if (overlayTimes.length > 0) {
+    notes.push(
+      `${overlayTimes.length} on-screen graphic change(s) detected on a held shot ` +
+        "(see `overlayChanges` — a frame was extracted after each swap). This is the " +
+        "\"stats card cycling on every beat\" pattern: recreate it with one segment per " +
+        "swap, each with its own `image`, boundaries snapped to the `beats` timestamps."
+    );
+  }
   const fadeCount = detectedCuts.filter((c) => c.type === "fade").length;
   if (fadeCount > 0) {
     notes.push(
@@ -173,6 +209,7 @@ export async function analyzeReference(
     hasAudio: info.hasAudio,
     sceneCuts: cuts.map((c) => Math.round(c * 100) / 100),
     cuts: detectedCuts,
+    overlayChanges,
     averageShotSeconds,
     beats,
     bpm,

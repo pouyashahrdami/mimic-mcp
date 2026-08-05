@@ -8,7 +8,7 @@ import {
   type ScdetSample,
 } from "./analysis.js";
 import { detectSceneCuts } from "./ffmpeg.js";
-import { makeCutVideo, makeFadeVideo } from "./test-fixtures.js";
+import { makeCutVideo, makeFadeVideo, makeOverlayVideo } from "./test-fixtures.js";
 
 describe("parseScdetSamples", () => {
   it("pairs pts_time with the scd score and mafd that follow it", () => {
@@ -81,6 +81,31 @@ describe("pickSceneCuts", () => {
     expect(pickSceneCuts(samples)).toHaveLength(2);
   });
 
+  it("types a small spike on a quiet baseline as an overlay change", () => {
+    const samples = track(120);
+    // A stats card swapping on a held shot: sharp but small score spike.
+    samples[60] = { time: 2, score: 4, mafd: 4 };
+    const cuts = pickSceneCuts(samples);
+    expect(cuts).toEqual([{ time: 2, score: 4, type: "overlay" }]);
+  });
+
+  it("reports overlays and full cuts side by side", () => {
+    const samples = track(240);
+    samples[60] = { time: 2, score: 4, mafd: 4 };
+    samples[180] = { time: 6, score: 45, mafd: 45 };
+    expect(pickSceneCuts(samples).map((c) => c.type)).toEqual(["overlay", "cut"]);
+  });
+
+  it("does not fire the overlay tier on busy footage", () => {
+    // Constant moderate motion: the adaptive baseline swallows small spikes.
+    const samples = track(300).map((s, i) => ({
+      ...s,
+      score: 5 + (i % 3),
+      mafd: 5 + (i % 3),
+    }));
+    expect(pickSceneCuts(samples).filter((c) => c.type === "overlay")).toEqual([]);
+  });
+
   it("raises the threshold on busy footage instead of firing everywhere", () => {
     // Noisy handheld footage: constant moderate scores, no real cut.
     const samples = track(300).map((s, i) => ({
@@ -115,6 +140,17 @@ describe("detectSceneCuts (integration)", () => {
     expect(cuts[0].time).toBeCloseTo(2, 0);
     expect(cuts[1].time).toBeCloseTo(4, 0);
     expect(cuts.every((c) => c.type === "cut")).toBe(true);
+  }, 60_000);
+
+  it("detects graphic swaps on a held shot as overlays, not cuts", async () => {
+    const video = path.join(dir, "overlay.mp4");
+    await makeOverlayVideo(video, ["0x333333", "0x808080", "0xCCCCCC"], 2);
+    const cuts = await detectSceneCuts(video);
+    const overlays = cuts.filter((c) => c.type === "overlay");
+    expect(cuts.filter((c) => c.type !== "overlay")).toEqual([]);
+    expect(overlays).toHaveLength(2);
+    expect(overlays[0].time).toBeCloseTo(2, 0);
+    expect(overlays[1].time).toBeCloseTo(4, 0);
   }, 60_000);
 
   it("detects a dissolve and types it 'fade'", async () => {

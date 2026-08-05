@@ -43,6 +43,33 @@ export async function makeCutVideo(
   ]);
 }
 
+/**
+ * Static background with a small box that changes color every `secondsEach` —
+ * an on-screen graphic swapping while the camera holds (the stats-card look).
+ */
+export async function makeOverlayVideo(
+  outPath: string,
+  boxColors: string[],
+  secondsEach: number,
+  { size = "160x288", fps = 30 } = {}
+): Promise<void> {
+  const total = boxColors.length * secondsEach;
+  const boxes = boxColors
+    .map(
+      (c, i) =>
+        `drawbox=x=30:y=60:w=80:h=40:c=${c}:t=fill:` +
+        `enable='between(t,${i * secondsEach},${(i + 1) * secondsEach})'`
+    )
+    .join(",");
+  await run("ffmpeg", [
+    "-y",
+    "-f", "lavfi",
+    "-i", `color=c=gray:s=${size}:d=${total}:r=${fps}`,
+    "-vf", boxes,
+    outPath,
+  ]);
+}
+
 /** Two color clips joined by an xfade dissolve starting at `offsetSeconds`. */
 export async function makeFadeVideo(
   outPath: string,
