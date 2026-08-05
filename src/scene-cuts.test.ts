@@ -3,43 +3,48 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
-  parseScdetSamples,
+  frameChangeSamples,
   pickSceneCuts,
-  type ScdetSample,
+  type FrameChangeSample,
 } from "./analysis.js";
 import { detectSceneCuts } from "./ffmpeg.js";
 import { makeCutVideo, makeFadeVideo, makeOverlayVideo } from "./test-fixtures.js";
 
-describe("parseScdetSamples", () => {
-  it("pairs pts_time with the scd score and mafd that follow it", () => {
-    const stderr = [
-      "[Parsed_metadata_1 @ 0x1] frame:0    pts:0      pts_time:0",
-      "[Parsed_metadata_1 @ 0x1] frame:1    pts:512    pts_time:0.033333",
-      "[Parsed_metadata_1 @ 0x1] lavfi.scd.mafd=4.500",
-      "[Parsed_metadata_1 @ 0x1] lavfi.scd.score=2.100",
-      "[Parsed_metadata_1 @ 0x1] frame:2    pts:1024   pts_time:0.066667",
-      "[Parsed_metadata_1 @ 0x1] lavfi.scd.mafd=48.000",
-      "[Parsed_metadata_1 @ 0x1] lavfi.scd.score=43.500",
-    ].join("\n");
+describe("frameChangeSamples", () => {
+  const W = 8;
+  const H = 6;
+  const grid = { cols: 8, rows: 6 };
+  const frame = (fill: number) => new Uint8Array(W * H).fill(fill);
 
-    expect(parseScdetSamples(stderr)).toEqual([
-      { time: 0.033333, score: 2.1, mafd: 4.5 },
-      { time: 0.066667, score: 43.5, mafd: 48 },
-    ]);
+  it("reports zero change for identical frames", () => {
+    const samples = frameChangeSamples([frame(100), frame(100)], W, H, 30, grid);
+    expect(samples).toEqual([{ time: 1 / 30, diff: 0, area: 0 }]);
   });
 
-  it("skips frames without a score (the first frame)", () => {
-    const stderr = "frame:0 pts:0 pts_time:0\nframe:1 pts:512 pts_time:0.03";
-    expect(parseScdetSamples(stderr)).toEqual([]);
+  it("reports a full-frame change with area 1", () => {
+    const samples = frameChangeSamples([frame(0), frame(255)], W, H, 30, grid);
+    expect(samples[0].diff).toBeCloseTo(100, 0);
+    expect(samples[0].area).toBe(1);
+  });
+
+  it("reports a localized change with a small area", () => {
+    const a = frame(100);
+    const b = frame(100);
+    // With a cell per pixel, flip a 2x3 region in one corner.
+    for (let y = 0; y < 3; y++) for (let x = 0; x < 2; x++) b[y * W + x] = 255;
+    const samples = frameChangeSamples([a, b], W, H, 30, grid);
+    expect(samples[0].area).toBeCloseTo(6 / 48, 2);
+    expect(samples[0].diff).toBeGreaterThan(0);
+    expect(samples[0].diff).toBeLessThan(20);
   });
 });
 
-// Build a quiet score track with events injected at known frames.
-function track(length: number, fps = 30): ScdetSample[] {
+// Quiet baseline of near-static frames with events injected at known times.
+function track(length: number, fps = 30): FrameChangeSample[] {
   return Array.from({ length }, (_, i) => ({
-    time: i / fps,
-    score: 0.5,
-    mafd: 0.5,
+    time: (i + 1) / fps,
+    diff: 0.3,
+    area: 0,
   }));
 }
 
@@ -48,27 +53,61 @@ describe("pickSceneCuts", () => {
     expect(pickSceneCuts(track(120))).toEqual([]);
   });
 
-  it("finds an isolated spike and classifies it as a hard cut", () => {
+  it("finds a full-frame spike and classifies it as a hard cut", () => {
     const samples = track(120);
-    samples[60] = { time: 2, score: 45, mafd: 45 };
+    samples[60] = { time: samples[60].time, diff: 45, area: 1 };
     const cuts = pickSceneCuts(samples);
-    expect(cuts).toEqual([{ time: 2, score: 45, type: "cut" }]);
+    expect(cuts).toHaveLength(1);
+    expect(cuts[0].type).toBe("cut");
+    expect(cuts[0].area).toBe(1);
   });
 
-  it("classifies a spike followed by sustained frame difference as a fade", () => {
+  it("classifies a sustained full-frame change as a fade", () => {
     const samples = track(120);
-    // Fade start spikes the score; the dissolve keeps mafd near the peak.
-    samples[60] = { time: 2, score: 26, mafd: 26 };
-    for (let i = 61; i < 70; i++) samples[i] = { ...samples[i], mafd: 24 };
+    for (let i = 60; i < 69; i++) {
+      samples[i] = { time: samples[i].time, diff: 10, area: 1 };
+    }
     const cuts = pickSceneCuts(samples);
     expect(cuts).toHaveLength(1);
     expect(cuts[0].type).toBe("fade");
   });
 
+  it("classifies a localized change as an overlay regardless of strength", () => {
+    const samples = track(120);
+    samples[60] = { time: samples[60].time, diff: 30, area: 0.2 };
+    const cuts = pickSceneCuts(samples);
+    expect(cuts).toEqual([
+      { time: cuts[0].time, score: 30, area: 0.2, type: "overlay" },
+    ]);
+  });
+
+  it("catches a swap animated across several frames as one overlay", () => {
+    // The case scdet's min(diff, delta-diff) score suppressed: the change is
+    // spread over 4 frames, so no single frame towers over its neighbor.
+    const samples = track(120);
+    for (let i = 60; i < 64; i++) {
+      samples[i] = { time: samples[i].time, diff: 3.5, area: 0.2 };
+    }
+    const cuts = pickSceneCuts(samples);
+    expect(cuts).toHaveLength(1);
+    expect(cuts[0].type).toBe("overlay");
+  });
+
+  it("skips localized peaks riding on continuous motion — not a graphic", () => {
+    // A person shifting in frame: elevated change for ~0.7s with a peak
+    // inside it. Temporally isolated it is not, so no overlay is reported.
+    const samples = track(120);
+    for (let i = 50; i < 70; i++) {
+      samples[i] = { time: samples[i].time, diff: 3, area: 0.3 };
+    }
+    samples[60] = { time: samples[60].time, diff: 5, area: 0.3 };
+    expect(pickSceneCuts(samples)).toEqual([]);
+  });
+
   it("dedupes detections closer than the minimum gap, keeping the strongest", () => {
     const samples = track(120);
-    samples[60] = { time: 2, score: 30, mafd: 30 };
-    samples[62] = { time: 62 / 30, score: 40, mafd: 40 };
+    samples[60] = { time: samples[60].time, diff: 30, area: 1 };
+    samples[62] = { time: samples[62].time, diff: 40, area: 1 };
     const cuts = pickSceneCuts(samples);
     expect(cuts).toHaveLength(1);
     expect(cuts[0].score).toBe(40);
@@ -76,42 +115,16 @@ describe("pickSceneCuts", () => {
 
   it("keeps detections farther apart than the minimum gap", () => {
     const samples = track(120);
-    samples[30] = { time: 1, score: 30, mafd: 30 };
-    samples[90] = { time: 3, score: 30, mafd: 30 };
+    samples[30] = { time: samples[30].time, diff: 30, area: 1 };
+    samples[90] = { time: samples[90].time, diff: 30, area: 1 };
     expect(pickSceneCuts(samples)).toHaveLength(2);
   });
 
-  it("types a small spike on a quiet baseline as an overlay change", () => {
-    const samples = track(120);
-    // A stats card swapping on a held shot: sharp but small score spike.
-    samples[60] = { time: 2, score: 4, mafd: 4 };
-    const cuts = pickSceneCuts(samples);
-    expect(cuts).toEqual([{ time: 2, score: 4, type: "overlay" }]);
-  });
-
-  it("reports overlays and full cuts side by side", () => {
-    const samples = track(240);
-    samples[60] = { time: 2, score: 4, mafd: 4 };
-    samples[180] = { time: 6, score: 45, mafd: 45 };
-    expect(pickSceneCuts(samples).map((c) => c.type)).toEqual(["overlay", "cut"]);
-  });
-
-  it("does not fire the overlay tier on busy footage", () => {
-    // Constant moderate motion: the adaptive baseline swallows small spikes.
-    const samples = track(300).map((s, i) => ({
-      ...s,
-      score: 5 + (i % 3),
-      mafd: 5 + (i % 3),
-    }));
-    expect(pickSceneCuts(samples).filter((c) => c.type === "overlay")).toEqual([]);
-  });
-
   it("raises the threshold on busy footage instead of firing everywhere", () => {
-    // Noisy handheld footage: constant moderate scores, no real cut.
     const samples = track(300).map((s, i) => ({
       ...s,
-      score: 8 + (i % 3),
-      mafd: 8 + (i % 3),
+      diff: 5 + (i % 3),
+      area: 0.8,
     }));
     expect(pickSceneCuts(samples)).toEqual([]);
   });

@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { estimateBpm, parseScdetSamples, pickSceneCuts, type SceneCut } from "./analysis.js";
+import { estimateBpm, frameChangeSamples, pickSceneCuts, type SceneCut } from "./analysis.js";
 
 export type { SceneCut } from "./analysis.js";
 
@@ -86,23 +86,49 @@ export async function mediaDuration(mediaPath: string): Promise<number> {
   return Number(String(stdout).trim());
 }
 
+// Analysis raster: every frame is downscaled to this tiny grayscale vector.
+// Small enough that even an hour of footage fits in memory, big enough that
+// an on-screen card still covers several grid cells.
+const ANALYSIS_WIDTH = 48;
+const ANALYSIS_HEIGHT = 27;
+const MAX_ANALYSIS_FPS = 30;
+
 /**
- * Detect scene changes with ffmpeg's dedicated scdet filter. Per-frame scores
- * are collected and thresholded adaptively (see pickSceneCuts), detections
- * closer than ~0.15s are merged, and each one is classified as a hard cut or
- * a fade/dissolve from the measured frame-difference profile.
+ * Detect scene changes by decoding EVERY frame to a small grayscale vector
+ * and diffing consecutive frames (see frameChangeSamples) — nothing between
+ * samples can be missed, and swaps animated over a few frames register at
+ * full strength. Detections are adaptively thresholded, merged within
+ * ~0.15s, and classified cut / fade / overlay from how much of the frame
+ * changed and how the change decayed.
  */
 export async function detectSceneCuts(videoPath: string): Promise<SceneCut[]> {
-  // threshold=100 keeps scdet's own logging quiet; the per-frame score/mafd
-  // metadata is attached regardless and metadata=print dumps it to stderr.
-  const { stderr } = await exec("ffmpeg", [
-    "-i", videoPath,
-    "-vf", "scdet=threshold=100,metadata=print",
-    "-f", "null",
-    "-",
-  ]);
+  const info = await probe(videoPath);
+  const fps = Math.min(info.fps || MAX_ANALYSIS_FPS, MAX_ANALYSIS_FPS);
 
-  return pickSceneCuts(parseScdetSamples(stderr));
+  const { stdout } = await run(
+    "ffmpeg",
+    [
+      "-i", videoPath,
+      "-vf", `fps=${fps},scale=${ANALYSIS_WIDTH}:${ANALYSIS_HEIGHT},format=gray`,
+      "-f", "rawvideo",
+      "-",
+    ],
+    { encoding: "buffer", maxBuffer: MAX_BUFFER }
+  ).catch((err: NodeJS.ErrnoException) => {
+    if (err.code === "ENOENT") throw new FfmpegMissingError("ffmpeg");
+    throw err;
+  });
+
+  const frameBytes = ANALYSIS_WIDTH * ANALYSIS_HEIGHT;
+  const raw = stdout as unknown as Buffer;
+  const frames: Uint8Array[] = [];
+  for (let off = 0; off + frameBytes <= raw.length; off += frameBytes) {
+    frames.push(new Uint8Array(raw.buffer, raw.byteOffset + off, frameBytes));
+  }
+
+  return pickSceneCuts(
+    frameChangeSamples(frames, ANALYSIS_WIDTH, ANALYSIS_HEIGHT, fps)
+  );
 }
 
 export interface BeatAnalysis {

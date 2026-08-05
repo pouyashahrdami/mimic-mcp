@@ -167,10 +167,12 @@ export async function analyzeReference(
   }
   if (overlayTimes.length > 0) {
     notes.push(
-      `${overlayTimes.length} on-screen graphic change(s) detected on a held shot ` +
-        "(see `overlayChanges` — a frame was extracted after each swap). This is the " +
-        "\"stats card cycling on every beat\" pattern: recreate it with one segment per " +
-        "swap, each with its own `image`, boundaries snapped to the `beats` timestamps."
+      `${overlayTimes.length} localized change(s) detected on a held shot ` +
+        "(see `overlayChanges` — a frame was extracted after each one). Open those frames: " +
+        "an on-screen graphic swapping (the \"stats card cycling on every beat\" pattern — " +
+        "recreate with one segment per swap, each with its own `image`, snapped to `beats`) " +
+        "looks different from the subject jumping between poses (a timelapse — recreate " +
+        "with segment cuts or speed ramps at those times)."
     );
   }
   const fadeCount = detectedCuts.filter((c) => c.type === "fade").length;
