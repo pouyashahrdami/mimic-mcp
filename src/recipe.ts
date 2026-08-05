@@ -128,6 +128,15 @@ export const segmentSchema = z.object({
     .positive()
     .optional()
     .describe("Font size in px overriding the caption style's default"),
+  captionWeight: z
+    .number()
+    .min(100)
+    .max(900)
+    .optional()
+    .describe(
+      "CSS font-weight overriding the caption style's default (the built-in looks are bold; " +
+        "set 400 for the delicate editorial-serif reference style)."
+    ),
   transitionIn: z
     .enum(["cut", "fade", "slide"])
     .default("cut")

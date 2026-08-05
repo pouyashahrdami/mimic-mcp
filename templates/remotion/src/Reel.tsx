@@ -149,6 +149,7 @@ const Caption = ({
   const color = segment.captionColor;
   const size = segment.captionSize;
   const font = segment.captionFont;
+  const weight = segment.captionWeight;
 
   const captionEl = (
     <div
@@ -161,6 +162,7 @@ const Caption = ({
         ...(color ? { color } : {}),
         ...(size ? { fontSize: size } : {}),
         ...(font ? { fontFamily: font } : {}),
+        ...(weight ? { fontWeight: weight } : {}),
       }}
     >
       <CaptionText segment={segment} durationInFrames={durationInFrames} />

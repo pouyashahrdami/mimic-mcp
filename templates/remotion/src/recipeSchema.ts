@@ -36,6 +36,7 @@ export const segmentSchema = z.object({
   captionColor: z.string().optional(),
   captionFont: z.string().optional(),
   captionSize: z.number().positive().optional(),
+  captionWeight: z.number().min(100).max(900).optional(),
   transitionIn: z.enum(["cut", "fade", "slide"]).default("cut"),
   sound: z.string().optional(),
   soundVolume: z.number().min(0).max(1).optional(),
