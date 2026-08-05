@@ -3,6 +3,7 @@ import path from "node:path";
 import {
   accumulateMotion,
   estimateBpm,
+  fingerprintTransition,
   planShotFrames,
   shotsFromCuts,
   summarizeShotMotion,
@@ -18,7 +19,7 @@ import {
   extractFrame,
   probe,
 } from "../ffmpeg.js";
-import type { StyleSpec } from "../style-spec.js";
+import type { MeasuredTransition, StyleSpec } from "../style-spec.js";
 
 // More shots than this stops being "study the style" and starts being noise.
 const MAX_SAMPLED_SHOTS = 8;
@@ -52,6 +53,12 @@ export interface ReferenceAnalysis {
   sceneCuts: number[];
   /** Every detection with its score and measured type (cut, fade, overlay). */
   cuts: SceneCut[];
+  /**
+   * Each shot-to-shot transition fingerprinted from the full-fps frames
+   * around it: hard cut, dissolve, dip-to-black/white, or directional wipe —
+   * with its measured on-screen duration.
+   */
+  transitions: MeasuredTransition[];
   /**
    * On-screen graphic swaps on a held shot (stats cards, screenshots): when
    * they happened, with a frame extracted just after each swap so you can see
@@ -145,6 +152,29 @@ export async function analyzeReference(
     const samples = accumulateMotion(frames, width, height, fps, start);
     shots[shotIndex].motion = summarizeShotMotion(samples, width, height);
   }
+
+  // Fingerprint every shot-to-shot transition from the frames around it.
+  const TRANSITION_WINDOW = 0.5;
+  const transitions: MeasuredTransition[] = [];
+  for (const t of cuts) {
+    const start = Math.max(0, t - TRANSITION_WINDOW);
+    const end = Math.min(info.videoSeconds, t + TRANSITION_WINDOW);
+    const { frames, width, height, fps } = await decodeShotForMotion(
+      videoPath,
+      start,
+      end,
+      info.fps
+    );
+    const fp = fingerprintTransition(frames, width, height, fps);
+    if (fp) {
+      transitions.push({
+        time: Math.round(t * 100) / 100,
+        kind: fp.kind,
+        durationSeconds: fp.durationSeconds,
+        ...(fp.direction ? { direction: fp.direction } : {}),
+      });
+    }
+  }
   // One frame just after each overlay swap, so every state of an on-screen
   // graphic is visible — a single mid-shot frame only ever catches one.
   const MAX_OVERLAY_FRAMES = 12;
@@ -218,12 +248,17 @@ export async function analyzeReference(
         "with segment cuts or speed ramps at those times)."
     );
   }
-  const fadeCount = detectedCuts.filter((c) => c.type === "fade").length;
-  if (fadeCount > 0) {
+  const softTransitions = transitions.filter((t) => t.kind !== "cut");
+  if (softTransitions.length > 0) {
+    const described = softTransitions
+      .map(
+        (t) =>
+          `${t.time}s: ${t.kind}${t.direction ? ` ${t.direction}` : ""} over ${t.durationSeconds}s`
+      )
+      .join("; ");
     notes.push(
-      `${fadeCount} of the ${detectedCuts.length} transitions measured as fades/dissolves ` +
-        "(see `cuts[].type`) — use transitionIn \"fade\" for the segments starting there, " +
-        "and \"cut\" for the rest."
+      `MEASURED transitions (fingerprinted from the frames, not guessed): ${described}. ` +
+        "Everything not listed is a hard cut. Match each in the recipe."
     );
   }
   if (!info.hasAudio) {
@@ -274,7 +309,8 @@ export async function analyzeReference(
     height: info.height,
     fps: info.fps,
     shots: shots.map((s) => ({ start: s.start, end: s.end, motion: s.motion })),
-    transitions: detectedCuts,
+    transitions,
+    overlayChanges: overlayTimes.map((t) => Math.round(t * 100) / 100),
     beats,
     bpm,
   };
@@ -290,6 +326,7 @@ export async function analyzeReference(
     hasAudio: info.hasAudio,
     sceneCuts: cuts.map((c) => Math.round(c * 100) / 100),
     cuts: detectedCuts,
+    transitions,
     overlayChanges,
     averageShotSeconds,
     beats,

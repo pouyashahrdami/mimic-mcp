@@ -1,4 +1,13 @@
-import type { SceneCut, ShotMotion } from "./analysis.js";
+import type { ShotMotion, TransitionKind } from "./analysis.js";
+
+export interface MeasuredTransition {
+  time: number;
+  /** Fingerprinted from the full-fps frames around the event, not guessed. */
+  kind: TransitionKind;
+  durationSeconds: number;
+  /** For wipes: which way the new shot sweeps in. */
+  direction?: "left" | "right" | "up" | "down";
+}
 
 /**
  * The measured description of a reference reel — the hub the redesign hangs
@@ -14,8 +23,10 @@ export interface StyleSpec {
   height: number;
   fps: number;
   shots: SpecShot[];
-  /** Every detected transition/overlay event with its measured type. */
-  transitions: SceneCut[];
+  /** Every shot-to-shot transition with its fingerprinted kind and duration. */
+  transitions: MeasuredTransition[];
+  /** On-screen graphic swaps on held shots (stats cards cycling, etc.). */
+  overlayChanges: number[];
   beats: number[];
   bpm: number | null;
 }

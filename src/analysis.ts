@@ -240,6 +240,166 @@ export function estimateBpm(
   return Math.round((60 * sampleRate) / bestLag);
 }
 
+export type TransitionKind =
+  | "cut"
+  | "dissolve"
+  | "dip-to-black"
+  | "dip-to-white"
+  | "wipe";
+
+export interface TransitionFingerprint {
+  kind: TransitionKind;
+  /** How long the transition takes on screen; a hard cut is one frame. */
+  durationSeconds: number;
+  /** For wipes: which way the new shot sweeps in. */
+  direction?: "left" | "right" | "up" | "down";
+}
+
+/**
+ * Classify what actually happens across a detected transition, from the
+ * full-fps frames around it. The change curve's WIDTH separates cut from
+ * dissolve, the luma curve's EXTREMES catch dips to black/white, and the
+ * change centroid's TRAJECTORY catches wipes — a sweeping boundary drags the
+ * center of change across the frame, while a dissolve changes everywhere at
+ * once and keeps the centroid still.
+ */
+export function fingerprintTransition(
+  frames: Uint8Array[],
+  width: number,
+  height: number,
+  fps: number,
+  { elevatedFraction = 0.3, blackLuma = 30, whiteLuma = 225 } = {}
+): TransitionFingerprint | null {
+  if (frames.length < 3) return null;
+  const n = frames.length;
+  const pixels = width * height;
+
+  const luma: number[] = frames.map((f) => {
+    let sum = 0;
+    for (let i = 0; i < pixels; i++) sum += f[i];
+    return sum / pixels;
+  });
+
+  // Per-pair mean diff and change centroid.
+  const diffs: number[] = [];
+  const cxs: number[] = [];
+  const cys: number[] = [];
+  for (let i = 1; i < n; i++) {
+    const a = frames[i - 1];
+    const b = frames[i];
+    let total = 0;
+    let wx = 0;
+    let wy = 0;
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const d = Math.abs(a[y * width + x] - b[y * width + x]);
+        total += d;
+        wx += d * x;
+        wy += d * y;
+      }
+    }
+    diffs.push(total / pixels);
+    cxs.push(total > 0 ? wx / total : width / 2);
+    cys.push(total > 0 ? wy / total : height / 2);
+  }
+
+  const peakIdx = diffs.indexOf(Math.max(...diffs));
+  const peak = diffs[peakIdx];
+  if (peak <= 0) return null;
+
+  // Run of pairs carrying a meaningful share of the peak change, measured
+  // ABOVE the window's baseline motion — a talking head moves continuously,
+  // and judging elevation against zero would smear its hard cuts into fake
+  // dissolves. Short quiet gaps are bridged: a dip holds on black/white for
+  // a few frames (zero diff) in the middle of one visual transition.
+  // Baseline = 25th percentile: a real transition, however long, leaves the
+  // quietest quarter of the window (the held shots either side) untouched,
+  // while continuous camera motion elevates even that.
+  const sortedDiffs = [...diffs].sort((a, b) => a - b);
+  const baseline = sortedDiffs[Math.floor(sortedDiffs.length / 4)];
+  const threshold = baseline + (peak - baseline) * elevatedFraction;
+  const maxGapPairs = 4;
+  const extend = (from: number, step: -1 | 1): number => {
+    let edge = from;
+    let i = from + step;
+    let gap = 0;
+    while (i >= 0 && i < diffs.length && gap <= maxGapPairs) {
+      if (diffs[i] >= threshold) {
+        edge = i;
+        gap = 0;
+      } else {
+        gap++;
+      }
+      i += step;
+    }
+    return edge;
+  };
+  const runStart = extend(peakIdx, -1);
+  const runEnd = extend(peakIdx, 1);
+  const runPairs = runEnd - runStart + 1;
+  const durationSeconds = Math.round((runPairs / fps) * 1000) / 1000;
+
+  // Luma extremes inside the run, judged against the shots on either side.
+  const runLumas = luma.slice(runStart, runEnd + 2);
+  const before = luma[Math.max(0, runStart - 1)];
+  const after = luma[Math.min(n - 1, runEnd + 2)];
+  const minLuma = Math.min(...runLumas);
+  const maxLuma = Math.max(...runLumas);
+  if (minLuma <= blackLuma && before > blackLuma * 2 && after > blackLuma * 2) {
+    return { kind: "dip-to-black", durationSeconds };
+  }
+  if (maxLuma >= whiteLuma && before < whiteLuma && after < whiteLuma) {
+    return { kind: "dip-to-white", durationSeconds };
+  }
+
+  if (runPairs <= 2) return { kind: "cut", durationSeconds };
+
+  // Wipe: the change centroid sweeps across a large fraction of the frame.
+  const dxSpan = cxs[runEnd] - cxs[runStart];
+  const dySpan = cys[runEnd] - cys[runStart];
+  if (Math.abs(dxSpan) >= width * 0.35 && Math.abs(dxSpan) >= Math.abs(dySpan)) {
+    return {
+      kind: "wipe",
+      durationSeconds,
+      direction: dxSpan > 0 ? "right" : "left",
+    };
+  }
+  if (Math.abs(dySpan) >= height * 0.35) {
+    return {
+      kind: "wipe",
+      durationSeconds,
+      direction: dySpan > 0 ? "down" : "up",
+    };
+  }
+
+  // A dissolve is literally a pixel blend of the outgoing and incoming shots
+  // — the mid-transition frame must be reproducible as pre + α(post − pre).
+  // Fast camera or subject motion also spreads change over many frames, but
+  // its intermediate frames are SHIFTED content, not blends, and leave a
+  // large residual. Refusing those windows beats mislabeling them.
+  const pre = frames[Math.max(0, runStart - 1)];
+  const post = frames[Math.min(n - 1, runEnd + 2)];
+  const mid = frames[Math.min(n - 1, Math.round((runStart + runEnd) / 2) + 1)];
+  let num = 0;
+  let den = 0;
+  for (let i = 0; i < pixels; i++) {
+    const d = post[i] - pre[i];
+    num += (mid[i] - pre[i]) * d;
+    den += d * d;
+  }
+  if (den < 1) return null; // pre ≈ post: nothing actually changed shots
+  const alpha = num / den;
+  let resid = 0;
+  for (let i = 0; i < pixels; i++) {
+    const e = mid[i] - (pre[i] + alpha * (post[i] - pre[i]));
+    resid += e * e;
+  }
+  const blendError = Math.sqrt(resid / pixels) / Math.sqrt(den / pixels);
+  if (blendError > 0.35) return null;
+
+  return { kind: "dissolve", durationSeconds };
+}
+
 export interface FrameMotion {
   /** Horizontal translation of the content, in pixels at analysis resolution. */
   dx: number;
