@@ -1,4 +1,10 @@
-# mimic-mcp
+<p align="center">
+  <img src="assets/logo.svg" alt="mimic-mcp logo" width="120">
+</p>
+
+<h1 align="center">mimic-mcp</h1>
+
+<p align="center"><em>Your agent clones the style of any reel onto your footage.</em></p>
 
 [![CI](https://github.com/pouyashahrdami/mimic-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/pouyashahrdami/mimic-mcp/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)

@@ -6,6 +6,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-08-06
+
 The initial `0.1.0` feature set — the full analyze → recipe → scaffold → render →
 self-review loop and everything around it.
 
@@ -39,4 +41,5 @@ self-review loop and everything around it.
   the workflow.
 - **vitest** test harness.
 
-[Unreleased]: https://github.com/pouyashahrdami/mimic-mcp/commits/main
+[Unreleased]: https://github.com/pouyashahrdami/mimic-mcp/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/pouyashahrdami/mimic-mcp/releases/tag/v0.1.0
