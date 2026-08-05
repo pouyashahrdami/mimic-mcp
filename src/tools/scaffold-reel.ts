@@ -58,18 +58,33 @@ export async function scaffoldReel(
 
   // Copy media into public/ so the project renders anywhere, then point the
   // recipe at the copies (Remotion's staticFile resolves against public/).
-  const bgName = path.basename(recipe.background.video);
-  await cp(recipe.background.video, path.join(publicDir, bgName));
+  // Distinct sources sharing a basename get suffixed names instead of
+  // clobbering each other, and a source reused across segments is copied once.
+  const staged = new Map<string, string>();
+  const usedNames = new Set<string>();
+  async function stage(sourcePath: string): Promise<string> {
+    const already = staged.get(sourcePath);
+    if (already) return already;
+    const ext = path.extname(sourcePath);
+    const base = path.basename(sourcePath, ext);
+    let name = `${base}${ext}`;
+    for (let n = 2; usedNames.has(name); n++) name = `${base}-${n}${ext}`;
+    usedNames.add(name);
+    staged.set(sourcePath, name);
+    await cp(sourcePath, path.join(publicDir, name));
+    return name;
+  }
 
   const localized: Recipe = {
     ...recipe,
-    background: { ...recipe.background, video: bgName },
+    background: {
+      ...recipe.background,
+      video: await stage(recipe.background.video),
+    },
   };
 
   if (recipe.music) {
-    const musicName = path.basename(recipe.music.file);
-    await cp(recipe.music.file, path.join(publicDir, musicName));
-    localized.music = { ...recipe.music, file: musicName };
+    localized.music = { ...recipe.music, file: await stage(recipe.music.file) };
   }
 
   localized.segments = [];
@@ -77,22 +92,16 @@ export async function scaffoldReel(
     const local = { ...segment };
     if (segment.image) {
       await assertExists(segment.image, "segment image");
-      const imageName = path.basename(segment.image);
-      await cp(segment.image, path.join(publicDir, imageName));
-      local.image = imageName;
+      local.image = await stage(segment.image);
     }
     if (segment.backgroundVideo) {
       await assertExists(segment.backgroundVideo, "segment background video");
-      const videoName = path.basename(segment.backgroundVideo);
-      await cp(segment.backgroundVideo, path.join(publicDir, videoName));
-      local.backgroundVideo = videoName;
+      local.backgroundVideo = await stage(segment.backgroundVideo);
     }
     if (segment.sound) {
       const soundPath = resolveSound(segment.sound);
       await assertExists(soundPath, "segment sound effect");
-      const soundName = path.basename(soundPath);
-      await cp(soundPath, path.join(publicDir, soundName));
-      local.sound = soundName;
+      local.sound = await stage(soundPath);
     }
     localized.segments.push(local);
   }
