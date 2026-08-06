@@ -1,6 +1,7 @@
 node_modules/
 dist/
 *.log
+*.tgz
 .DS_Store
 
 # analysis output (extracted frames, audio) lands here by default
