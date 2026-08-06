@@ -75,7 +75,6 @@ const CaptionText = ({
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const animation = segment.captionAnimation ?? "none";
-  // recipe.json's inferred type is per-project; cast the optional timing array.
   const wordTimings = segment.wordTimings;
 
   if (animation === "karaoke") {
@@ -371,6 +370,7 @@ export const Reel = (recipe: Recipe) => {
     (s) =>
       s.backgroundStart != null ||
       s.backgroundVideo != null ||
+      s.backgroundPosition != null ||
       s.zoom != null ||
       s.speed != null ||
       s.videoTransitionIn != null
