@@ -123,25 +123,29 @@ export async function analyzeReference(
   workDir: string
 ): Promise<ReferenceAnalysis> {
   const info = await probe(videoPath);
-  const detectedCuts = await detectSceneCuts(videoPath);
+  // Cut detection decodes the video stream and beat detection only the audio,
+  // so the two run concurrently.
+  const [detectedCuts, beatInfo] = await Promise.all([
+    detectSceneCuts(videoPath),
+    (async (): Promise<{
+      beats: number[];
+      bpm: number | null;
+      beatMethod: ReferenceAnalysis["beatMethod"];
+    }> => {
+      if (!info.hasAudio) return { beats: [], bpm: null, beatMethod: null };
+      const aubioBeats = await tryAubioBeats(videoPath);
+      if (aubioBeats && aubioBeats.length > 0) {
+        return { beats: aubioBeats, bpm: estimateBpm(aubioBeats), beatMethod: "aubio" };
+      }
+      const { beats, bpm } = await detectBeats(videoPath);
+      return { beats, bpm, beatMethod: "rms-onset" };
+    })(),
+  ]);
   // Overlay changes are graphics swapping on a held shot — they subdivide the
   // content, not the camera work, so shots and pacing stats ignore them.
   const cuts = detectedCuts.filter((c) => c.type !== "overlay").map((c) => c.time);
   const overlayTimes = detectedCuts.filter((c) => c.type === "overlay").map((c) => c.time);
-  let beats: number[] = [];
-  let bpm: number | null = null;
-  let beatMethod: ReferenceAnalysis["beatMethod"] = null;
-  if (info.hasAudio) {
-    const aubioBeats = await tryAubioBeats(videoPath);
-    if (aubioBeats && aubioBeats.length > 0) {
-      beats = aubioBeats;
-      bpm = estimateBpm(aubioBeats);
-      beatMethod = "aubio";
-    } else {
-      ({ beats, bpm } = await detectBeats(videoPath));
-      beatMethod = "rms-onset";
-    }
-  }
+  const { beats, bpm, beatMethod } = beatInfo;
 
   const outDir = path.join(
     workDir,
@@ -149,6 +153,19 @@ export async function analyzeReference(
     path.basename(videoPath, path.extname(videoPath))
   );
   await mkdir(outDir, { recursive: true });
+
+  // OCR pass: sample frames a few times a second, read every on-screen text
+  // with Vision, and fold the sightings into a measured caption track. Kicked
+  // off now — one ffmpeg dump plus a Swift process, independent of everything
+  // below — and awaited when the caption track is needed.
+  const OCR_FPS = 2.5;
+  const MAX_OCR_FRAMES = 80;
+  const ocrPromise = (async () => {
+    const ocrDir = path.join(outDir, "ocr-frames");
+    await mkdir(ocrDir, { recursive: true });
+    const ocrFrames = await extractFramesForOcr(videoPath, ocrDir, OCR_FPS, MAX_OCR_FRAMES);
+    return tryOcrFrames(ocrFrames);
+  })();
 
   // Start/mid/end frames per shot: motion inside a shot (the classic slow
   // punch-in zoom, pans) is invisible in a single mid frame but obvious when
@@ -289,14 +306,7 @@ export async function analyzeReference(
     keyframes.push({ atSeconds, file });
   }
 
-  // OCR pass: sample frames a few times a second, read every on-screen text
-  // with Vision, and fold the sightings into a measured caption track.
-  const OCR_FPS = 2.5;
-  const MAX_OCR_FRAMES = 80;
-  const ocrDir = path.join(outDir, "ocr-frames");
-  await mkdir(ocrDir, { recursive: true });
-  const ocrFrames = await extractFramesForOcr(videoPath, ocrDir, OCR_FPS, MAX_OCR_FRAMES);
-  const ocrResults = await tryOcrFrames(ocrFrames);
+  const ocrResults = await ocrPromise;
   const captions = ocrResults ? buildCaptionTrack(ocrResults) : null;
 
   // Crop the biggest caption out of the video at full quality so the agent
