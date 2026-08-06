@@ -12,6 +12,7 @@
     "dist",
     "templates",
     "presets",
+    "assets/ocr",
     "assets/sfx"
   ],
   "scripts": {
