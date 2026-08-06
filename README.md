@@ -147,6 +147,23 @@ The recipe is the contract between "agent understands the reference" and "code r
 
 Every field past `caption`/`captionStyle` is optional — a minimal segment is just start/end/caption. `scaffold_reel` validates the recipe and generates a Remotion project you (or the agent) can still tweak by hand before rendering.
 
+## Troubleshooting
+
+Most issues are a missing external binary. The tools fail loud with an actionable
+message; here's what each one means.
+
+| Symptom | Cause & fix |
+|---------|-------------|
+| `ffmpeg not found on PATH` / `ffprobe not found on PATH` | The core render/analysis dependency is missing. `brew install ffmpeg` (installs both). Required by every media tool. |
+| `No whisper CLI found on PATH` | Only affects `transcribe_reference`. Install one: `uv tool install whisper-ctranslate2` (light, no torch) or `pip install openai-whisper`. |
+| `macOS say not found` | `generate_voiceover` uses the built-in macOS `say`, so it's macOS-only. On other platforms, generate the voiceover elsewhere and pass it as your footage's audio. |
+| Beat detection looks coarse | Without **aubio**, `analyze_reference` falls back to an energy-rise heuristic — it still works. For real beat tracking: `brew install aubio` (or `uv tool install aubio`). |
+| No caption track in the analysis | The OCR pass uses Apple's Vision framework via a Swift helper, so it's macOS-only. Everything else in `analyze_reference` still runs; the caption track is simply omitted on other platforms. |
+
+Everything except `generate_voiceover` (macOS `say`) and the OCR caption track (macOS
+Vision) is cross-platform. When an optional dependency is missing, the affected tool
+degrades or errors clearly rather than producing a silently wrong result.
+
 ## Status
 
 The core loop works end to end: analyze → recipe → scaffold → render → self-review. Style coverage is broad — karaoke/typewriter caption animations, Ken-Burns zoom punch-ins, multi-clip montages, beat detection, transition sound effects, aspect-ratio exports, reusable style presets, silence trimming, transcription and voiceover. Growing as real reference reels hit it. Issues and PRs welcome — the `presets/` folder is an easy first contribution.
