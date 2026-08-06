@@ -47,4 +47,24 @@ describe("scaffoldReel", () => {
     expect(await readFile(path.join(publicDir, "clip.mp4"), "utf8")).toBe("footage A");
     expect(await readFile(path.join(publicDir, "clip-2.mp4"), "utf8")).toBe("footage B");
   });
+
+  it("refuses a non-empty target that isn't a reel project, allows re-scaffolding one", async () => {
+    tmp = await mkdtemp(path.join(tmpdir(), "scaffold-test-"));
+    const video = path.join(tmp, "clip.mp4");
+    await writeFile(video, "footage");
+    const recipeJson = JSON.stringify({
+      output: { durationSeconds: 10 },
+      background: { video },
+      segments: [{ start: 0, end: 5, caption: "hi" }],
+    });
+
+    const occupied = path.join(tmp, "occupied");
+    await mkdir(occupied);
+    await writeFile(path.join(occupied, "notes.txt"), "not a reel project");
+    await expect(scaffoldReel(recipeJson, occupied)).rejects.toThrow("isn't empty");
+
+    const projectDir = path.join(tmp, "project");
+    await scaffoldReel(recipeJson, projectDir);
+    await expect(scaffoldReel(recipeJson, projectDir)).resolves.toBeTruthy();
+  });
 });

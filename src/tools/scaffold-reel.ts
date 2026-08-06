@@ -1,4 +1,4 @@
-import { access, cp, mkdir, writeFile } from "node:fs/promises";
+import { access, cp, mkdir, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseRecipe, type Recipe } from "../recipe.js";
@@ -49,6 +49,21 @@ export async function scaffoldReel(
   await assertExists(recipe.background.video, "background video");
   if (recipe.music) {
     await assertExists(recipe.music.file, "music file");
+  }
+
+  // Refuse to splat template files into a directory that already holds
+  // something else. Re-scaffolding over an existing reel project is fine.
+  const entries = await readdir(projectDir).catch(() => null);
+  if (entries && entries.length > 0) {
+    const isReelProject = await access(path.join(projectDir, "recipe.json"))
+      .then(() => true)
+      .catch(() => false);
+    if (!isReelProject) {
+      throw new Error(
+        `${projectDir} already exists and isn't empty. Pick a fresh directory, ` +
+          "or point at an existing scaffolded project to overwrite it."
+      );
+    }
   }
 
   await cp(TEMPLATE_DIR, projectDir, { recursive: true });
