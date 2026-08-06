@@ -1,5 +1,6 @@
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { extractPreset, presetSchema } from "./presets.js";
 import { parseRecipe } from "./recipe.js";
@@ -8,7 +9,7 @@ describe("shipped presets", () => {
   // listPresets silently skips malformed files, so a broken built-in would
   // vanish from the listing without any signal. Pin them here instead.
   it("all validate against the preset schema", async () => {
-    const dir = path.join(import.meta.dirname, "..", "presets");
+    const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "presets");
     const files = (await readdir(dir)).filter((f) => f.endsWith(".json"));
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {
