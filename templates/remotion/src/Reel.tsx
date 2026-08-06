@@ -198,13 +198,16 @@ const Caption = ({
     );
   }
 
+  const position = segment.captionPosition ?? (isTip ? "bottom" : "center");
   return (
     <AbsoluteFill
       style={{
-        justifyContent: isTip ? "flex-end" : "center",
+        justifyContent:
+          position === "top" ? "flex-start" : position === "bottom" ? "flex-end" : "center",
         alignItems: "center",
         padding: 64,
-        paddingBottom: isTip ? 220 : 64,
+        paddingTop: position === "top" ? 220 : 64,
+        paddingBottom: position === "bottom" ? 220 : 64,
       }}
     >
       {/* full-width wrapper: captionEl's maxWidth must resolve against the

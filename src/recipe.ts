@@ -112,6 +112,14 @@ export const segmentSchema = z.object({
         "with the music. Default 1 (normal speed). The segment consumes " +
         "(end - start) * speed seconds of source footage from backgroundStart."
     ),
+  captionPosition: z
+    .enum(["top", "center", "bottom"])
+    .optional()
+    .describe(
+      "Vertical band the caption sits in, overriding the style's default " +
+        "(hook/plain center, tip bottom). Copy from analyze_reference's measured " +
+        "captions[].band — POV-style reels often run top."
+    ),
   captionColor: z
     .string()
     .optional()

@@ -33,6 +33,7 @@ export const segmentSchema = z.object({
   videoTransitionIn: videoTransitionSchema.optional(),
   zoom: zoomSchema.optional(),
   speed: z.number().positive().max(16).optional(),
+  captionPosition: z.enum(["top", "center", "bottom"]).optional(),
   captionColor: z.string().optional(),
   captionFont: z.string().optional(),
   captionSize: z.number().positive().optional(),

@@ -236,7 +236,7 @@ export function diffSpecs(reference: StyleSpec, render: StyleSpec): SpecDiff {
         penalty += 4;
         issues.push(
           `caption "${renCap.text}" sits in the ${renCap.band} band but the reference's ` +
-            `sits ${refCap.band} — move it (captionStyle or template layout)`
+            `sits ${refCap.band} — set that segment's captionPosition to "${refCap.band}"`
         );
       }
       if (sizeRatio < 0.75 || sizeRatio > 1.35) {
