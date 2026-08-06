@@ -22,6 +22,10 @@ A preset is a reusable *look* with no content — caption styles, animations, tr
 
 ## Project shape
 
+For how the pieces fit together — the analyze → recipe → render → review data flow and
+what each module owns — see [ARCHITECTURE.md](ARCHITECTURE.md).
+
+
 - `src/index.ts` — MCP server entry (stdio transport).
 - `src/tools/` — one file per MCP tool.
 - `src/recipe.ts` — the style-recipe schema (the JSON contract between analysis and rendering).
