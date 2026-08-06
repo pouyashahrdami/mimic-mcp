@@ -1,6 +1,22 @@
+import { readFile, readdir } from "node:fs/promises";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { extractPreset } from "./presets.js";
+import { extractPreset, presetSchema } from "./presets.js";
 import { parseRecipe } from "./recipe.js";
+
+describe("shipped presets", () => {
+  // listPresets silently skips malformed files, so a broken built-in would
+  // vanish from the listing without any signal. Pin them here instead.
+  it("all validate against the preset schema", async () => {
+    const dir = path.join(import.meta.dirname, "..", "presets");
+    const files = (await readdir(dir)).filter((f) => f.endsWith(".json"));
+    expect(files.length).toBeGreaterThan(0);
+    for (const file of files) {
+      const raw = JSON.parse(await readFile(path.join(dir, file), "utf8"));
+      expect(() => presetSchema.parse(raw), `${file} failed validation`).not.toThrow();
+    }
+  });
+});
 
 describe("extractPreset", () => {
   it("keeps the typographic look and zoom easing, drops content", () => {
