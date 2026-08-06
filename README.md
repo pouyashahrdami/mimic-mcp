@@ -80,17 +80,12 @@ Requires: **Node 18+** and **ffmpeg/ffprobe** on your PATH (`brew install ffmpeg
 
 Optional: a local **whisper CLI** for `transcribe_reference` (`uv tool install whisper-ctranslate2` — light, no torch, or `pip install openai-whisper`), and **aubio** (`brew install aubio`) to upgrade `analyze_reference`'s beat detection from an energy-rise heuristic to real beat tracking. `generate_voiceover` uses macOS's built-in `say`, so it's macOS-only; every other tool is cross-platform.
 
-```bash
-git clone https://github.com/pouyashahrdami/mimic-mcp
-cd mimic-mcp
-npm install
-npm run build
-```
+The fastest path is to point your agent at the published package via `npx` — no clone, no build.
 
 ### Claude Code
 
 ```bash
-claude mcp add mimic-mcp -- node /absolute/path/to/mimic-mcp/dist/index.js
+claude mcp add mimic-mcp -- npx -y mimic-mcp
 ```
 
 ### Codex
@@ -99,13 +94,26 @@ Add to `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.mimic-mcp]
-command = "node"
-args = ["/absolute/path/to/mimic-mcp/dist/index.js"]
+command = "npx"
+args = ["-y", "mimic-mcp"]
 ```
 
 ### Anything else
 
-It's a standard stdio MCP server: `node dist/index.js`.
+It's a standard stdio MCP server: `npx -y mimic-mcp` (or `node dist/index.js` from a checkout).
+
+### From source
+
+To hack on it (see [CONTRIBUTING.md](CONTRIBUTING.md)):
+
+```bash
+git clone https://github.com/pouyashahrdami/mimic-mcp
+cd mimic-mcp
+npm install
+npm run build
+```
+
+Then use `node /absolute/path/to/mimic-mcp/dist/index.js` as the command instead of `npx -y mimic-mcp`.
 
 ## The style recipe
 
