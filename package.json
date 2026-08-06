@@ -18,6 +18,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
+    "prepack": "npm run build",
     "start": "node dist/index.js",
     "test": "vitest run"
   },
