@@ -165,7 +165,7 @@ export async function analyzeReference(
     await mkdir(ocrDir, { recursive: true });
     const ocrFrames = await extractFramesForOcr(videoPath, ocrDir, OCR_FPS, MAX_OCR_FRAMES);
     return tryOcrFrames(ocrFrames);
-  })();
+  })().catch(() => null); // degrade to frames-only, and never reject unobserved
 
   // Start/mid/end frames per shot: motion inside a shot (the classic slow
   // punch-in zoom, pans) is invisible in a single mid frame but obvious when
