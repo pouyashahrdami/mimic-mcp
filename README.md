@@ -1,5 +1,9 @@
 # mimic-mcp
 
+[![CI](https://github.com/pouyashahrdami/mimic-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/pouyashahrdami/mimic-mcp/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)](package.json)
+
 An MCP server that turns "here's my footage, here's my script, make it look like *that* reel" into an actual rendered video.
 
 Your agent can already **see** — this gives it **hands** for making reels. It studies a reel you like frame by frame, clones the style onto your footage, renders it with [Remotion](https://remotion.dev), then critiques its own render against the reference and fixes what's off.
