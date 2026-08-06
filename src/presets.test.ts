@@ -34,6 +34,7 @@ describe("extractPreset", () => {
             captionFont: "Georgia, serif",
             captionWeight: 400,
             captionSize: 54,
+            captionPosition: "top",
             zoom: { from: 1, to: 1.12, easing: "easeOut" },
           },
         ],
@@ -45,6 +46,7 @@ describe("extractPreset", () => {
     expect(seg.captionFont).toBe("Georgia, serif");
     expect(seg.captionWeight).toBe(400);
     expect(seg.captionSize).toBe(54);
+    expect(seg.captionPosition).toBe("top");
     expect(seg.zoom?.easing).toBe("easeOut");
     expect(seg.durationSeconds).toBe(5);
     expect(preset.musicVolume).toBe(0.6);

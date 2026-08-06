@@ -138,6 +138,14 @@ describe("diffSpecs", () => {
     expect(diff.issues.join(" ")).toContain("captionSize");
   });
 
+  it("names captionPosition as the fix for a band mismatch", () => {
+    const ref = baseSpec({ captions: [caption("hello", 1, 4, { band: "top" })] });
+    const render = baseSpec({ captions: [caption("hi there", 1, 4)] });
+    const diff = diffSpecs(ref, render);
+    expect(diff.captions[0].bandMatch).toBe(false);
+    expect(diff.issues.join(" ")).toContain('captionPosition to "top"');
+  });
+
   it("flags a reference caption with nothing on screen in the render", () => {
     const ref = baseSpec({ captions: [caption("lonely", 1, 4)] });
     const render = baseSpec({ captions: [] });
