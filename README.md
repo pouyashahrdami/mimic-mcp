@@ -168,6 +168,15 @@ degrades or errors clearly rather than producing a silently wrong result.
 
 The core loop works end to end: analyze → recipe → scaffold → render → self-review. Style coverage is broad — karaoke/typewriter caption animations, Ken-Burns zoom punch-ins, multi-clip montages, beat detection, transition sound effects, aspect-ratio exports, reusable style presets, silence trimming, transcription and voiceover. Growing as real reference reels hit it. Issues and PRs welcome — the `presets/` folder is an easy first contribution.
 
+## Documentation
+
+- [CONTRIBUTING.md](CONTRIBUTING.md) — dev setup, code style, and how to open a PR.
+- [ARCHITECTURE.md](ARCHITECTURE.md) — the analyze → recipe → render → review data flow and what each module owns.
+- [presets/README.md](presets/README.md) — the preset format and how to add one.
+- [CHANGELOG.md](CHANGELOG.md) — notable changes per version.
+- [SECURITY.md](SECURITY.md) — reporting vulnerabilities and the trust model.
+- [AGENTS.md](AGENTS.md) — rules for AI agents working on this repo.
+
 ## License
 
 MIT
