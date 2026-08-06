@@ -4,8 +4,6 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { estimateBpm, frameChangeSamples, pickSceneCuts, type SceneCut } from "./analysis.js";
 
-export type { SceneCut } from "./analysis.js";
-
 const run = promisify(execFile);
 
 // ffmpeg writes filter/progress output to stderr, so we keep both streams.
