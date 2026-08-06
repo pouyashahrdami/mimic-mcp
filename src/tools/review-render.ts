@@ -1,10 +1,42 @@
-import { access, mkdir, readFile } from "node:fs/promises";
+import { access, mkdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { extractFrame, probe } from "../ffmpeg.js";
 import { mapLimit } from "../parallel.js";
 import { recipeSchema } from "../recipe.js";
 import { diffSpecs, type SpecDiff } from "../spec-diff.js";
+import type { StyleSpec } from "../style-spec.js";
 import { analyzeReference } from "./analyze-reference.js";
+
+/**
+ * The reference's style spec, reusing the one a previous review round measured
+ * when it's still current. The reference never changes across the review →
+ * fix recipe → re-render loop, so re-running the full analysis (cut detection,
+ * OCR, beats) on it every round only burns time; the render's analysis is
+ * always fresh.
+ */
+async function referenceStyleSpec(
+  referenceVideo: string,
+  reviewDir: string
+): Promise<StyleSpec> {
+  const base = path.basename(referenceVideo, path.extname(referenceVideo));
+  // "reel" is the render's own analysis dir — a reference named reel.mp4
+  // would collide with it, so analyze fresh rather than trust the cache.
+  if (base !== "reel") {
+    const specFile = path.join(reviewDir, ".mimic-mcp", base, "style-spec.json");
+    try {
+      const [specStat, videoStat] = await Promise.all([
+        stat(specFile),
+        stat(referenceVideo),
+      ]);
+      if (specStat.mtimeMs > videoStat.mtimeMs) {
+        return JSON.parse(await readFile(specFile, "utf8")) as StyleSpec;
+      }
+    } catch {
+      // No cached spec yet — fall through to a full analysis.
+    }
+  }
+  return (await analyzeReference(referenceVideo, reviewDir)).styleSpec;
+}
 
 export interface ReviewFrame {
   segment: number;
@@ -69,9 +101,9 @@ export async function reviewRender(
   // pipeline as the reference and diff the resulting specs.
   let fidelity: SpecDiff | undefined;
   if (referenceVideo) {
-    const refAnalysis = await analyzeReference(referenceVideo, reviewDir);
+    const refSpec = await referenceStyleSpec(referenceVideo, reviewDir);
     const renderAnalysis = await analyzeReference(outVideo, reviewDir);
-    fidelity = diffSpecs(refAnalysis.styleSpec, renderAnalysis.styleSpec);
+    fidelity = diffSpecs(refSpec, renderAnalysis.styleSpec);
   }
 
   const fidelityNote = fidelity
