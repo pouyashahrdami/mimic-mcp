@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.svg" alt="mimic-mcp logo" width="120">
+  <img src="https://raw.githubusercontent.com/pouyashahrdami/mimic-mcp/main/assets/logo.svg" alt="mimic-mcp logo" width="120">
 </p>
 
 <h1 align="center">mimic-mcp</h1>
@@ -14,7 +14,7 @@ An MCP server that turns "here's my footage, here's my script, make it look like
 
 Your agent can already **see** — this gives it **hands** for making reels. It studies a reel you like frame by frame, clones the style onto your footage, renders it with [Remotion](https://remotion.dev), then critiques its own render against the reference and fixes what's off.
 
-![reference reel next to the generated reel](assets/demo.gif)
+![reference reel next to the generated reel](https://raw.githubusercontent.com/pouyashahrdami/mimic-mcp/main/assets/demo.gif)
 
 *Left: a reel the user liked (someone else's, about API resources). Right: what the agent generated from the user's own footage and a one-line script about AI models — same pacing, same layout, same music.*
 
@@ -82,33 +82,84 @@ The agent then:
 
 ## Install
 
-Requires: **Node 18+** and **ffmpeg/ffprobe** on your PATH (`brew install ffmpeg`).
+### What you need
 
-Optional: a local **whisper CLI** for `transcribe_reference` (`uv tool install whisper-ctranslate2` — light, no torch, or `pip install openai-whisper`), and **aubio** (`brew install aubio`) to upgrade `analyze_reference`'s beat detection from an energy-rise heuristic to real beat tracking. `generate_voiceover` uses macOS's built-in `say`, so it's macOS-only; every other tool is cross-platform.
+| Dependency | Used for | Required? |
+|------------|----------|-----------|
+| **Node 18+** (with npm) | the server itself, plus scaffolding and rendering Remotion projects | required |
+| **ffmpeg + ffprobe** on PATH | every media tool — analysis, trimming, music extraction, exports | required |
+| a **whisper CLI** (`whisper-ctranslate2` or `openai-whisper`) | `transcribe_reference` (word-level timings for karaoke captions) | optional |
+| **aubio** | real beat tracking in `analyze_reference` (without it: an energy-rise heuristic that still works) | optional |
+| **Swift toolchain** (Xcode Command Line Tools) | the OCR'd caption track in `analyze_reference`, via Apple Vision | optional, macOS only |
+| macOS **`say`** | `generate_voiceover` (built-in TTS, no API key) | built-in, macOS only |
+
+Two things to know: the **first render is slow** because Remotion downloads a headless Chromium (once, automatically), and every missing optional dependency **degrades cleanly** — the affected tool errors with an actionable message or omits that part of the analysis, it never silently produces wrong output.
+
+#### macOS
+
+```bash
+brew install ffmpeg
+```
+
+Optional extras (better beats, transcription, OCR captions):
+
+```bash
+brew install aubio && uv tool install whisper-ctranslate2 && xcode-select --install
+```
+
+#### Windows
+
+```bash
+winget install Gyan.FFmpeg
+```
+
+Optional transcription (aubio has no good Windows build — beat detection falls back to the heuristic):
+
+```bash
+uv tool install whisper-ctranslate2
+```
+
+`generate_voiceover` and the OCR caption track are macOS-only; everything else works. Generate voiceovers with any TTS you like and pass the audio in as footage.
+
+#### Linux
+
+```bash
+sudo apt install ffmpeg aubio-tools   # Debian/Ubuntu — dnf/pacman: ffmpeg + aubio
+```
+
+Optional transcription:
+
+```bash
+uv tool install whisper-ctranslate2
+```
+
+If the first render fails to launch Chromium, install its shared libraries — Remotion lists the exact packages per distro: [remotion.dev/docs/miscellaneous/linux-dependencies](https://www.remotion.dev/docs/miscellaneous/linux-dependencies). Same macOS-only caveats as Windows: no `generate_voiceover`, no OCR caption track.
+
+### Hook it up to your agent
 
 The fastest path is to point your agent at the published package via `npx` — no clone, no build.
 
-### Claude Code
+#### Claude Code
 
 ```bash
-claude mcp add mimic-mcp -- npx -y mimic-mcp
+claude mcp add mimic-mcp -- npx -y mimic-reels-mcp
 ```
 
-### Codex
+#### Codex
 
 Add to `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.mimic-mcp]
 command = "npx"
-args = ["-y", "mimic-mcp"]
+args = ["-y", "mimic-reels-mcp"]
 ```
 
-### Anything else
+#### Anything else
 
-It's a standard stdio MCP server: `npx -y mimic-mcp` (or `node dist/index.js` from a checkout).
+It's a standard stdio MCP server: `npx -y mimic-reels-mcp` (or `node dist/index.js` from a checkout).
 
-### From source
+#### From source
 
 To hack on it (see [CONTRIBUTING.md](CONTRIBUTING.md)):
 
@@ -119,7 +170,7 @@ npm install
 npm run build
 ```
 
-Then use `node /absolute/path/to/mimic-mcp/dist/index.js` as the command instead of `npx -y mimic-mcp`.
+Then use `node /absolute/path/to/mimic-mcp/dist/index.js` as the command instead of `npx -y mimic-reels-mcp`.
 
 ## The style recipe
 
