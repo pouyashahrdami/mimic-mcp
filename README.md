@@ -171,6 +171,7 @@ The core loop works end to end: analyze → recipe → scaffold → render → s
 ## Documentation
 
 - [CONTRIBUTING.md](CONTRIBUTING.md) — dev setup, code style, and how to open a PR.
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — expectations for participation.
 - [ARCHITECTURE.md](ARCHITECTURE.md) — the analyze → recipe → render → review data flow and what each module owns.
 - [presets/README.md](presets/README.md) — the preset format and how to add one.
 - [CHANGELOG.md](CHANGELOG.md) — notable changes per version.
