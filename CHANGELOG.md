@@ -9,7 +9,9 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [0.1.0] - 2026-08-06
 
 The initial `0.1.0` feature set — the full analyze → recipe → scaffold → render →
-self-review loop and everything around it.
+self-review loop and everything around it. Published to npm as
+[`mimic-reels-mcp`](https://www.npmjs.com/package/mimic-reels-mcp) (the unscoped
+`mimic-mcp` name was already taken on the registry).
 
 ### Added
 

@@ -7,10 +7,17 @@
 <p align="center"><em>Your agent clones the style of any reel onto your footage.</em></p>
 
 [![CI](https://github.com/pouyashahrdami/mimic-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/pouyashahrdami/mimic-mcp/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/mimic-reels-mcp.svg)](https://www.npmjs.com/package/mimic-reels-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)](package.json)
 
 An MCP server that turns "here's my footage, here's my script, make it look like *that* reel" into an actual rendered video.
+
+```bash
+claude mcp add mimic-mcp -- npx -y mimic-reels-mcp
+```
+
+(That's Claude Code — [Codex, Cursor, Gemini CLI, and everything else below](#hook-it-up-to-your-agent). You'll also want [ffmpeg](#install).)
 
 Your agent can already **see** — this gives it **hands** for making reels. It studies a reel you like frame by frame, clones the style onto your footage, renders it with [Remotion](https://remotion.dev), then critiques its own render against the reference and fixes what's off.
 
@@ -155,9 +162,30 @@ command = "npx"
 args = ["-y", "mimic-reels-mcp"]
 ```
 
+#### Cursor
+
+Add to `.cursor/mcp.json` (per-project) or `~/.cursor/mcp.json` (global):
+
+```json
+{
+  "mcpServers": {
+    "mimic-mcp": {
+      "command": "npx",
+      "args": ["-y", "mimic-reels-mcp"]
+    }
+  }
+}
+```
+
+#### Gemini CLI
+
+```bash
+gemini mcp add mimic-mcp npx -y mimic-reels-mcp
+```
+
 #### Anything else
 
-It's a standard stdio MCP server: `npx -y mimic-reels-mcp` (or `node dist/index.js` from a checkout).
+It's a standard stdio MCP server: `npx -y mimic-reels-mcp` (or `node dist/index.js` from a checkout). Any client that takes a command + args config uses `npx` / `["-y", "mimic-reels-mcp"]` like the Cursor snippet above.
 
 #### From source
 
