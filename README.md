@@ -117,6 +117,7 @@ The recipe is the contract between "agent understands the reference" and "code r
       "start": 0, "end": 2.1,
       "caption": "3 tools that changed how I code",
       "captionStyle": "hook",          // hook | tip | plain
+      "captionPosition": "top",        // top | center | bottom (match the reference's band)
       "transitionIn": "cut",           // cut | fade | slide
       "captionAnimation": "karaoke",   // none | karaoke | typewriter
       "highlightColor": "#ffe000",     // active-word color for karaoke
