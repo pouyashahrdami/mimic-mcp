@@ -22,7 +22,7 @@ This file is loaded by Claude Code, Codex, and other agents. Follow it exactly.
 - `src/index.ts` — MCP server entry (stdio transport).
 - `src/tools/` — one file per MCP tool.
 - `src/recipe.ts` — the style-recipe schema (the JSON contract between analysis and rendering).
-- `src/remotion-template/` — files that `scaffold_reel` copies/generates into a new Remotion project.
+- `templates/remotion/` — files that `scaffold_reel` copies/generates into a new Remotion project.
 
 ## Testing changes
 
