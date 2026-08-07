@@ -10,7 +10,9 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
+import type { ReactNode } from "react";
 import type { Recipe, Segment, VideoTransition, Zoom } from "./recipeSchema";
+import { scenes } from "./scenes";
 
 const TRANSITION_FRAMES = 12;
 const DEFAULT_HIGHLIGHT = "#ffe000";
@@ -290,6 +292,7 @@ const SegmentBackground = ({
   video,
   image,
   fill,
+  sceneEl,
   fit,
   muted,
   startFrom,
@@ -303,6 +306,7 @@ const SegmentBackground = ({
   video?: string;
   image?: string;
   fill?: string;
+  sceneEl?: ReactNode;
   fit: string;
   muted: boolean;
   startFrom: number;
@@ -315,7 +319,9 @@ const SegmentBackground = ({
 }) => {
   const frame = useCurrentFrame();
   const { width, height } = useVideoConfig();
-  const media = video ? (
+  const media = sceneEl ? (
+    <AbsoluteFill>{sceneEl}</AbsoluteFill>
+  ) : video ? (
     <OffthreadVideo
       src={staticFile(video)}
       muted={muted}
@@ -386,6 +392,7 @@ export const Reel = (recipe: Recipe) => {
       s.backgroundVideo != null ||
       s.backgroundImage != null ||
       s.backgroundFill != null ||
+      s.scene != null ||
       s.backgroundPosition != null ||
       s.zoom != null ||
       s.speed != null ||
@@ -415,12 +422,19 @@ export const Reel = (recipe: Recipe) => {
       {isMontage &&
         recipe.segments.map((segment, i) => {
           const bgStart = segment.backgroundStart;
-          // Per-segment source wins over the global one; a segment-level image
-          // or fill means "no footage here", even when the reel has a video.
+          // Per-segment source wins over the global one; a segment-level scene,
+          // image or fill means "no footage here", even when the reel has a video.
+          const Scene = segment.scene ? scenes[segment.scene] : undefined;
+          if (segment.scene && !Scene) {
+            throw new Error(
+              `segment ${i} asks for scene "${segment.scene}" but src/scenes/index.ts ` +
+                "doesn't register it — re-run scaffold_reel or add it to the registry"
+            );
+          }
           const bgImage = segment.backgroundImage;
           const bgFill = segment.backgroundFill;
           const bgVideo =
-            bgImage || bgFill
+            Scene || bgImage || bgFill
               ? undefined
               : (segment.backgroundVideo ?? recipe.background.video);
           const bgPosition = segment.backgroundPosition;
@@ -442,6 +456,11 @@ export const Reel = (recipe: Recipe) => {
                 video={bgVideo}
                 image={bgImage}
                 fill={bgFill ?? recipe.background.fill}
+                sceneEl={
+                  Scene ? (
+                    <Scene segment={segment} durationInFrames={durationInFrames} />
+                  ) : undefined
+                }
                 fit={recipe.background.fit}
                 muted={recipe.background.muted}
                 startFrom={Math.round((bgStart ?? segment.start) * fps)}

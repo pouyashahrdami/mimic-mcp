@@ -35,6 +35,17 @@ export const segmentSchema = z.object({
         "a product screenshot, a designed frame, a photo. Rides the same zoom/transition " +
         "machinery as footage: add `zoom` for the Ken-Burns product-demo move."
     ),
+  scene: z
+    .string()
+    .optional()
+    .describe(
+      "Absolute path to a Remotion scene component YOU write (.tsx, default-exporting a " +
+        "React component that takes SceneProps from ../recipeSchema). The scene becomes " +
+        "this segment's entire background layer — the full generative escape hatch for " +
+        "animated UI mockups, motion graphics, charts, anything React can draw. " +
+        "scaffold_reel copies the file into the project's src/scenes/ and rewires this " +
+        "field to the scene's name. Captions, sounds, zoom and transitions still apply on top."
+    ),
   backgroundStart: z
     .number()
     .min(0)
@@ -256,20 +267,23 @@ export function parseRecipe(json: string): Recipe {
     if (seg.end <= seg.start) {
       throw new Error(`segment ${i}: end (${seg.end}) must be after start (${seg.start})`);
     }
-    const sources = [seg.backgroundVideo, seg.backgroundImage, seg.backgroundFill].filter(
-      (s) => s != null
-    );
+    const sources = [
+      seg.backgroundVideo,
+      seg.backgroundImage,
+      seg.backgroundFill,
+      seg.scene,
+    ].filter((s) => s != null);
     if (sources.length > 1) {
       throw new Error(
-        `segment ${i}: backgroundVideo, backgroundImage and backgroundFill are mutually ` +
-          "exclusive — pick the one background this segment should show"
+        `segment ${i}: backgroundVideo, backgroundImage, backgroundFill and scene are ` +
+          "mutually exclusive — pick the one background this segment should show"
       );
     }
     if (sources.length === 0 && !recipe.background.video && !recipe.background.fill) {
       throw new Error(
-        `segment ${i}: no background anywhere — set backgroundFill, backgroundImage or ` +
-          "backgroundVideo on the segment, or background.video / background.fill globally " +
-          '(an explicit backgroundFill of "black" is fine for a minimal look)'
+        `segment ${i}: no background anywhere — set backgroundFill, backgroundImage, ` +
+          "backgroundVideo or scene on the segment, or background.video / background.fill " +
+          'globally (an explicit backgroundFill of "black" is fine for a minimal look)'
       );
     }
     if (

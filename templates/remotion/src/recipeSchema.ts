@@ -29,6 +29,7 @@ export const segmentSchema = z.object({
   image: z.string().optional(),
   backgroundFill: z.string().optional(),
   backgroundImage: z.string().optional(),
+  scene: z.string().optional(),
   backgroundStart: z.number().min(0).optional(),
   backgroundVideo: z.string().optional(),
   backgroundPosition: z.string().optional(),
@@ -74,5 +75,15 @@ export const recipeSchema = z.object({
 
 export type Recipe = z.infer<typeof recipeSchema>;
 export type Segment = z.infer<typeof segmentSchema>;
+
+/**
+ * Props every custom scene component receives. A scene renders a segment's
+ * entire background layer; use useCurrentFrame() (relative to the segment's
+ * Sequence) with durationInFrames to animate.
+ */
+export type SceneProps = {
+  segment: Segment;
+  durationInFrames: number;
+};
 export type Zoom = z.infer<typeof zoomSchema>;
 export type VideoTransition = z.infer<typeof videoTransitionSchema>;
