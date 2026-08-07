@@ -65,7 +65,21 @@ The server gives the agent the tools to pull that off:
 | `list_presets` / `get_preset` | Browse and fetch style presets — shipped built-ins plus your own — a reusable look (caption styles, animations, transitions, zoom, timing) with no content. |
 | `save_preset` | Capture the style of a recipe you nailed (dropping footage, text and music) as a named preset to reapply to future reels. |
 
-Plus a `mimic-mcp` **prompt** that shows up as a slash command in Claude Code (`/mcp__mimic-mcp__mimic-mcp`) and walks the agent through the full workflow.
+Plus two **prompts** that show up as slash commands in Claude Code: `mimic-mcp` (`/mcp__mimic-mcp__mimic-mcp`) walks the agent through the style-copying workflow, and `generate-scratch` (`/mcp__mimic-mcp__generate-scratch`) through the from-scratch one below.
+
+## Making a reel from scratch — no footage
+
+Copying a style is one workflow; the other is having nothing shot at all — a graphical product demo, a launch teaser, motion graphics. Footage is optional: a segment's background can be any one of
+
+- **`backgroundFill`** — a CSS color or gradient canvas (`"linear-gradient(160deg, #0f0c29, #302b63)"`), the cheap designed look under big type;
+- **`backgroundImage`** — a full-bleed still (product screenshot, designed frame) that rides the same `zoom`/`videoTransitionIn` machinery as footage — Ken-Burns over screenshots is most of a product demo already;
+- **`scene`** — the powerful one: a path to a Remotion component **the agent writes itself** (a `.tsx` default-exporting a component that takes `SceneProps`). `scaffold_reel` copies it into the project's `src/scenes/` and the reel mounts it as that segment's whole background layer — animated UI mockups, charts drawing themselves, device frames, anything React can draw. Captions, sounds, zooms and transitions still apply on top.
+
+The three mix freely with footage segments in one recipe, so "screen recording, then a designed stats page, then a gradient outro" is just three segments. `review_render` works without a reference — you still get one frame per segment to critique against your own design intent.
+
+```
+/mcp__mimic-mcp__generate-scratch  script.txt  ./assets  [reference.mp4]  [style hint]
+```
 
 ## How the workflow feels
 
@@ -224,6 +238,14 @@ The recipe is the contract between "agent understands the reference" and "code r
       "backgroundVideo": "/path/to/clip-2.mov",  // optional: this segment's own clip (montage)
       "backgroundStart": 4.0,          // optional: seconds into the clip to start
       "image": "/path/to/screenshot.png"  // optional: floating card above the caption
+    },
+    {
+      "start": 2.1, "end": 4.0,
+      "caption": "or no footage at all",
+      // from-scratch backgrounds (one per segment, footage optional reel-wide):
+      "backgroundFill": "linear-gradient(160deg, #0f0c29, #302b63)", // CSS canvas
+      // "backgroundImage": "/path/to/product-shot.png",  // full-bleed still + zoom
+      // "scene": "/path/to/StatsScene.tsx"               // your own Remotion component
     }
     // ... one segment per shot, timed like the reference
   ]
@@ -251,7 +273,7 @@ degrades or errors clearly rather than producing a silently wrong result.
 
 ## Status
 
-The core loop works end to end: analyze → recipe → scaffold → render → self-review. Style coverage is broad — karaoke/typewriter caption animations, Ken-Burns zoom punch-ins, multi-clip montages, beat detection, transition sound effects, aspect-ratio exports, reusable style presets, silence trimming, transcription and voiceover. Growing as real reference reels hit it. Issues and PRs welcome — the `presets/` folder is an easy first contribution.
+The core loop works end to end: analyze → recipe → scaffold → render → self-review. Style coverage is broad — karaoke/typewriter caption animations, Ken-Burns zoom punch-ins, multi-clip montages, beat detection, transition sound effects, aspect-ratio exports, reusable style presets, silence trimming, transcription and voiceover — plus fully generated from-scratch reels (fills, image backgrounds, agent-authored Remotion scenes) with no footage at all. Growing as real reference reels hit it. Issues and PRs welcome — the `presets/` folder is an easy first contribution.
 
 ## Documentation
 

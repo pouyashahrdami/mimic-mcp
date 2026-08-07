@@ -34,6 +34,14 @@ The two contracts hold the halves together:
   It's the contract between "agent understands the reference" and "code renders the
   video"; the scaffolder turns it into a Remotion project with no further judgment.
 
+Footage is optional: a segment's background can instead be a CSS fill, a full-bleed
+still image, or a **custom scene** — a Remotion component the agent writes, which
+`scaffold_reel` stages into the project's `src/scenes/` alongside a generated
+registry (`src/scenes/index.ts`) that `Reel.tsx` resolves scene names against. That
+makes the left leg of the diagram optional too: the `generate-scratch` prompt runs
+the same scaffold → render → review loop with the agent as art director instead of
+a reference as ground truth (review still works, minus the measured diff).
+
 ## Module map
 
 | Area | Files | Responsibility |

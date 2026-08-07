@@ -6,6 +6,25 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **From-scratch reels — footage is now optional.** A segment's background can be a
+  CSS fill (`backgroundFill`, color or gradient), a full-bleed still
+  (`backgroundImage`, riding the same zoom/transition machinery as footage), or a
+  **custom scene**: an agent-authored Remotion component (`scene`) that
+  `scaffold_reel` stages into the project's `src/scenes/` with a generated registry.
+  All sources mix freely with footage segments in one recipe.
+- **`generate-scratch` prompt** — the from-scratch workflow (script + optional
+  assets/reference/style direction): storyboard pages, design fills/images/scenes,
+  scaffold, render, and self-review with no reference required.
+- `review_render` now tailors its guidance to reference-free reviews.
+
+### Changed
+
+- `background` (and `background.video`) is optional in the recipe; validation
+  requires each segment to resolve to *some* background and rejects segments mixing
+  background sources.
+
 ## [0.1.0] - 2026-08-06
 
 The initial `0.1.0` feature set — the full analyze → recipe → scaffold → render →
