@@ -113,14 +113,19 @@ export async function reviewRender(
         : "No measured deviations. ")
     : "";
 
+  const visualNote = referenceVideo
+    ? "Then open each rendered frame next to its reference frame and compare like an editor: " +
+      "caption size and position, card size and position, pacing, overall look. " +
+      "If something is off, edit recipe.json inside the project and call render_reel again. " +
+      "One or two fix rounds is normal; stop when the score holds and the frames look right."
+    : "Open each rendered frame and critique it against your own design intent, like an art " +
+      "director: clear type hierarchy, one focal point per page, nothing clipped, colors that " +
+      "hold together across pages. Fix recipe.json (or the scene files in src/scenes/) and " +
+      "call render_reel again. One or two fix rounds is normal.";
+
   return {
     frames,
     ...(fidelity ? { fidelity } : {}),
-    instructions:
-      fidelityNote +
-      "Then open each rendered frame next to its reference frame and compare like an editor: " +
-      "caption size and position, card size and position, pacing, overall look. " +
-      "If something is off, edit recipe.json inside the project and call render_reel again. " +
-      "One or two fix rounds is normal; stop when the score holds and the frames look right.",
+    instructions: fidelityNote + visualNote,
   };
 }

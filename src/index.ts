@@ -13,7 +13,7 @@ import { scaffoldReel } from "./tools/scaffold-reel.js";
 import { renderReel } from "./tools/render-reel.js";
 import { reviewRender } from "./tools/review-render.js";
 import { openInStudio } from "./tools/open-in-studio.js";
-import { mimicMcpPrompt } from "./prompt.js";
+import { generateScratchPrompt, mimicMcpPrompt } from "./prompt.js";
 
 const server = new McpServer({ name: "mimic-mcp", version: "0.1.0" });
 
@@ -175,8 +175,10 @@ server.registerTool(
     title: "Scaffold Remotion project",
     description:
       "Generate a self-contained Remotion project from a style recipe (JSON string). " +
-      "Copies the background footage and music into the project. " +
-      "See the mimic-mcp prompt or README for the recipe format.",
+      "Copies footage, images, music and custom scene components (.tsx) into the project. " +
+      "Footage is optional — segments can run on CSS fills, still images, or scenes you " +
+      "write, for fully generated reels. See the mimic-mcp / generate-scratch prompts or " +
+      "README for the recipe format.",
     inputSchema: {
       recipe_json: z.string().describe("The style recipe as a JSON string"),
       project_dir: z.string().describe("Directory to create the project in (should not exist yet or be empty)"),
@@ -226,7 +228,8 @@ server.registerTool(
     description:
       "Extract one frame per segment from the rendered reel — paired with frames from the same " +
       "relative position in the reference video, when given — so you can compare them side by side, " +
-      "critique the result, fix recipe.json, and re-render.",
+      "critique the result, fix recipe.json, and re-render. Works without a reference too " +
+      "(from-scratch reels): you get the per-segment frames to critique against your own design intent.",
     inputSchema: {
       project_dir: z.string().describe("A directory rendered by render_reel"),
       reference_video: z
@@ -371,6 +374,39 @@ server.registerPrompt(
       {
         role: "user" as const,
         content: { type: "text" as const, text: mimicMcpPrompt(args) },
+      },
+    ],
+  })
+);
+
+server.registerPrompt(
+  "generate-scratch",
+  {
+    title: "generate-scratch",
+    description:
+      "From-scratch workflow: design and render a fully generated reel (product demo, " +
+      "motion graphics) with no footage — fills, images, and custom Remotion scenes.",
+    argsSchema: {
+      script: z.string().describe("Your script text, or a path to a text file"),
+      assets: z
+        .string()
+        .optional()
+        .describe("Optional: directory or comma-separated files (screenshots, logo, product shots)"),
+      reference_video: z
+        .string()
+        .optional()
+        .describe("Optional: a video to study as design inspiration (not to overlay on)"),
+      style: z
+        .string()
+        .optional()
+        .describe("Optional: style direction, e.g. \"dark, neon, techy\" or \"clean editorial\""),
+    },
+  },
+  (args) => ({
+    messages: [
+      {
+        role: "user" as const,
+        content: { type: "text" as const, text: generateScratchPrompt(args) },
       },
     ],
   })
