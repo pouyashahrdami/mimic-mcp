@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mimic-mcp — your agent clones the style of any reel</title>
+<meta name="description" content="An open-source MCP server that studies a reference reel frame by frame, clones its style onto your footage, renders with Remotion, and reviews its own output.">
+<meta property="og:title" content="mimic-mcp">
+<meta property="og:description" content="Your agent clones the style of any reel onto your footage. Open-source MCP server built on Remotion.">
+<meta property="og:image" content="https://raw.githubusercontent.com/pouyashahrdami/mimic-mcp/main/assets/poster.png">
+<link rel="icon" href="https://raw.githubusercontent.com/pouyashahrdami/mimic-mcp/main/assets/logo.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0e0f13;
+  --panel:#161821;
+  --panel-2:#1c1f2a;
+  --line:#262a38;
+  --text:#e8e6df;
+  --muted:#8b8e98;
+  --accent:#ffe000;
+  --accent-ink:#141200;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+body{
+  background:var(--ink);
+  color:var(--text);
+  font-family:Inter,system-ui,sans-serif;
+  font-size:16px;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:inherit}
+img{max-width:100%}
+code,pre,kbd{font-family:"JetBrains Mono",ui-monospace,monospace}
+::selection{background:var(--accent);color:var(--accent-ink)}
+.wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+.display{font-family:Archivo,Inter,sans-serif;font-stretch:110%;font-weight:800;letter-spacing:-.02em;line-height:1.05}
+.eyebrow{font-family:"JetBrains Mono",monospace;font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:var(--accent)}
+.btn{display:inline-flex;align-items:center;gap:.5rem;padding:.7rem 1.25rem;border-radius:8px;font-weight:600;font-size:.92rem;text-decoration:none;border:1px solid var(--line);transition:transform .15s,background .15s,border-color .15s}
+.btn:hover{transform:translateY(-1px)}
+.btn:focus-visible,a:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn-primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn-primary:hover{background:#fff05c}
+.btn-ghost:hover{border-color:var(--muted)}
+
+/* ---------- nav ---------- */
+nav{position:sticky;top:0;z-index:10;background:rgba(14,15,19,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+nav .wrap{display:flex;align-items:center;gap:1.5rem;height:60px}
+nav .brand{display:flex;align-items:center;gap:.6rem;font-family:Archivo,sans-serif;font-weight:800;text-decoration:none;font-size:1.05rem}
+nav .brand img{width:26px;height:26px}
+nav .links{margin-left:auto;display:flex;gap:1.25rem;font-size:.88rem}
+nav .links a{text-decoration:none;color:var(--muted)}
+nav .links a:hover{color:var(--text)}
+nav .gh{margin-left:.25rem}
+@media (max-width:640px){nav .links a:not(.gh){display:none}}
+
+/* ---------- hero ---------- */
+.hero{padding:88px 0 72px;position:relative;overflow:hidden}
+.hero .wrap{display:grid;grid-template-columns:1.25fr .75fr;gap:56px;align-items:center}
+@media (max-width:860px){.hero .wrap{grid-template-columns:1fr}.hero{padding:56px 0}}
+.hero h1{font-size:clamp(2.4rem,5.4vw,4rem);margin:.9rem 0 1.1rem}
+.hero h1 em{font-style:normal;color:var(--accent)}
+.hero p.lede{color:var(--muted);font-size:1.08rem;max-width:34rem}
+.install{margin-top:1.75rem;display:flex;align-items:stretch;max-width:34rem;border:1px solid var(--line);border-radius:10px;background:var(--panel);overflow:hidden}
+.install pre{padding:.85rem 1rem;font-size:.85rem;overflow-x:auto;flex:1;white-space:pre;line-height:1.5}
+.install pre .dim{color:var(--muted)}
+.install button{border:0;border-left:1px solid var(--line);background:var(--panel-2);color:var(--text);padding:0 1rem;font-family:"JetBrains Mono",monospace;font-size:.78rem;cursor:pointer}
+.install button:hover{color:var(--accent)}
+.hero .cta{margin-top:1.25rem;display:flex;gap:.75rem;flex-wrap:wrap}
+.hero .foot{margin-top:1.5rem;font-size:.8rem;color:var(--muted)}
+.hero .foot a{color:var(--muted)}
+
+/* signature: animated 9:16 reel frame */
+.phone{width:250px;aspect-ratio:9/16;margin:0 auto;border:1px solid var(--line);border-radius:22px;background:
+  linear-gradient(160deg,#1a1d29 0%,#12141c 55%,#191322 100%);
+  position:relative;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.55)}
+.phone::before{content:"";position:absolute;inset:0;background:
+  radial-gradient(120% 60% at 70% 20%,rgba(255,224,0,.07),transparent 60%)}
+.phone .cap{position:absolute;left:0;right:0;top:38%;text-align:center;font-family:Archivo,sans-serif;font-weight:800;font-size:1.15rem;line-height:1.35;padding:0 1rem}
+.phone .cap span{opacity:.35;animation:kar 3.6s steps(1) infinite}
+.phone .cap span:nth-child(2){animation-delay:.45s}
+.phone .cap span:nth-child(3){animation-delay:.9s}
+.phone .cap span:nth-child(4){animation-delay:1.5s}
+.phone .cap span:nth-child(5){animation-delay:2.0s}
+@keyframes kar{0%{opacity:.35;color:var(--text)}12%,88%{opacity:1;color:var(--accent)}100%{opacity:1;color:var(--text)}}
+.phone .timeline{position:absolute;left:14px;right:14px;bottom:16px}
+.phone .beats{display:flex;gap:3px;align-items:flex-end;height:26px;margin-bottom:8px}
+.phone .beats i{flex:1;background:var(--line);border-radius:2px;animation:beat 1.2s ease-in-out infinite}
+.phone .beats i:nth-child(3n){animation-delay:.2s}.phone .beats i:nth-child(3n+1){animation-delay:.5s}
+@keyframes beat{0%,100%{height:30%}50%{height:95%;background:var(--accent)}}
+.phone .strip{display:flex;gap:3px}
+.phone .strip i{flex:1;height:14px;border-radius:2px;background:var(--panel-2);border:1px solid var(--line)}
+.phone .strip i.on{background:var(--accent);border-color:var(--accent)}
+.phone .badge{position:absolute;top:12px;left:12px;font-family:"JetBrains Mono",monospace;font-size:.6rem;letter-spacing:.12em;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:.2rem .55rem;background:rgba(14,15,19,.6)}
+
+/* ---------- sections ---------- */
+section{padding:72px 0;border-top:1px solid var(--line)}
+section h2{font-size:clamp(1.6rem,3vw,2.2rem);margin:.75rem 0 .75rem}
+section .sub{color:var(--muted);max-width:40rem}
+@media (max-width:640px){section{padding:52px 0}}
+
+/* loop */
+.loop{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-top:2.25rem}
+@media (max-width:860px){.loop{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:520px){.loop{grid-template-columns:1fr}}
+.loop .step{background:var(--panel);padding:1.4rem 1.25rem}
+.loop .step b{display:block;font-family:Archivo,sans-serif;font-weight:800;margin:.35rem 0 .4rem;font-size:1.02rem}
+.loop .step .k{font-family:"JetBrains Mono",monospace;font-size:.7rem;color:var(--accent)}
+.loop .step p{font-size:.88rem;color:var(--muted)}
+
+/* demo */
+.demo-frame{margin-top:2.25rem;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--panel)}
+.demo-frame img{display:block;width:100%}
+.demo-frame figcaption{padding:.9rem 1.25rem;font-size:.85rem;color:var(--muted);border-top:1px solid var(--line)}
+
+/* tools */
+.toolgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-top:2.25rem}
+@media (max-width:860px){.toolgrid{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:560px){.toolgrid{grid-template-columns:1fr}}
+.tool{border:1px solid var(--line);border-radius:12px;padding:1.25rem;background:var(--panel);transition:border-color .15s}
+.tool:hover{border-color:#3a4054}
+.tool code{color:var(--accent);font-size:.85rem;font-weight:700}
+.tool p{font-size:.86rem;color:var(--muted);margin-top:.5rem}
+.tool .tag{float:right;font-family:"JetBrains Mono",monospace;font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:.15rem .5rem}
+
+/* quickstart tabs */
+.tabs{margin-top:2.25rem;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--panel)}
+.tabbar{display:flex;flex-wrap:wrap;border-bottom:1px solid var(--line);background:var(--panel-2)}
+.tabbar button{background:none;border:0;color:var(--muted);font-family:"JetBrains Mono",monospace;font-size:.8rem;padding:.8rem 1.2rem;cursor:pointer;border-bottom:2px solid transparent}
+.tabbar button[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent)}
+.tabpanel{padding:1.25rem;display:none}
+.tabpanel.active{display:block}
+.tabpanel pre{background:var(--ink);border:1px solid var(--line);border-radius:8px;padding:1rem;font-size:.82rem;overflow-x:auto;line-height:1.55}
+.tabpanel p{font-size:.85rem;color:var(--muted);margin-bottom:.75rem}
+.tabpanel .c{color:#6a9955}.tabpanel .s{color:#ce9178}.tabpanel .key{color:#9cdcfe}
+
+/* recipe */
+.recipe{display:grid;grid-template-columns:.9fr 1.1fr;gap:2.5rem;align-items:start;margin-top:2.25rem}
+@media (max-width:860px){.recipe{grid-template-columns:1fr}}
+.recipe pre{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:1.25rem;font-size:.78rem;overflow-x:auto;line-height:1.6}
+.recipe .key{color:#9cdcfe}.recipe .s{color:#ce9178}.recipe .n{color:#b5cea8}.recipe .c{color:#6a9955}.recipe .y{color:var(--accent)}
+.recipe ul{list-style:none;margin-top:1.25rem}
+.recipe li{padding:.6rem 0;border-bottom:1px solid var(--line);font-size:.92rem;color:var(--muted)}
+.recipe li b{color:var(--text);font-weight:600}
+
+/* enterprise */
+.trust{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-top:2.25rem}
+@media (max-width:860px){.trust{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:560px){.trust{grid-template-columns:1fr}}
+.trust a{display:block;border:1px solid var(--line);border-radius:12px;padding:1.25rem;background:var(--panel);text-decoration:none;transition:border-color .15s}
+.trust a:hover{border-color:#3a4054}
+.trust b{display:block;font-family:Archivo,sans-serif;font-weight:800;margin-bottom:.35rem}
+.trust p{font-size:.85rem;color:var(--muted)}
+
+/* footer */
+footer{border-top:1px solid var(--line);padding:2.5rem 0;font-size:.85rem;color:var(--muted)}
+footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+footer a{color:var(--muted)}
+footer a:hover{color:var(--text)}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="#top">
+      <img src="https://raw.githubusercontent.com/pouyashahrdami/mimic-mcp/main/assets/logo.svg" alt="">
+      mimic-mcp
+    </a>
+    <div class="links">
+      <a href="#how">How it works</a>
+      <a href="#tools">Tools</a>
+      <a href="#quickstart">Quickstart</a>
+      <a href="#recipe">Style recipe</a>
+      <a class="gh" href="https://github.com/pouyashahrdami/mimic-mcp">GitHub ↗</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <div>
+      <span class="eyebrow">Open-source MCP server · MIT</span>
+      <h1 class="display">Your agent clones the style of <em>any reel</em> onto your footage.</h1>
+      <p class="lede">mimic-mcp studies a reference reel frame by frame — cuts, transitions, captions, beats — then rebuilds that style around your footage and script with <a href="https://remotion.dev">Remotion</a>, and reviews its own render against the original until it matches.</p>
+      <div class="install">
+        <pre><span class="dim">$</span> claude mcp add mimic-mcp -- npx -y mimic-reels-mcp</pre>
+        <button type="button" data-copy="claude mcp add mimic-mcp -- npx -y mimic-reels-mcp">copy</button>
+      </div>
+      <div class="cta">
+        <a class="btn btn-primary" href="#quickstart">Get started</a>
+        <a class="btn btn-ghost" href="https://github.com/pouyashahrdami/mimic-mcp">Star on GitHub</a>
+      </div>
+      <p class="foot">Works with Claude Code, Codex, Cursor, Gemini CLI — any <a href="https://modelcontextprotocol.io">MCP</a> client. Node 18+ and ffmpeg required.</p>
+    </div>
+    <div class="phone" aria-hidden="true">
+      <span class="badge">REC · 9:16</span>
+      <div class="cap"><span>3</span> <span>tools</span> <span>that</span> <span>changed</span> <span>everything</span></div>
+      <div class="timeline">
+        <div class="beats"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="strip"><i></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<section id="how">
+  <div class="wrap">
+    <span class="eyebrow">The loop</span>
+    <h2 class="display">Measure. Rebuild. Render. Self-review.</h2>
+    <p class="sub">The agent never guesses at a style — it measures the reference, writes a machine-readable style spec, and diffs its own render against it.</p>
+    <div class="loop">
+      <div class="step"><span class="k">01 · analyze_reference</span><b>Study the reference</b><p>Scene cuts, fingerprinted transitions, in-shot motion, OCR'd captions, musical beats — plus filmstrips so even 2-frame flashes are visible to the agent.</p></div>
+      <div class="step"><span class="k">02 · scaffold_reel</span><b>Write the recipe</b><p>The agent describes the new reel as plain JSON — your footage, your script, the reference's timing — and scaffolds a ready-to-edit Remotion project.</p></div>
+      <div class="step"><span class="k">03 · render_reel</span><b>Render the video</b><p>Draft renders for fast iteration, full-resolution for the deliverable. Remotion handles the pixels; the agent handles the taste.</p></div>
+      <div class="step"><span class="k">04 · review_render</span><b>Critique itself</b><p>The render goes through the same analyzer as the reference. The diff becomes a 0–100 fidelity score with issues that name the exact recipe field to fix.</p></div>
+    </div>
+    <figure class="demo-frame">
+      <img src="https://raw.githubusercontent.com/pouyashahrdami/mimic-mcp/main/assets/demo.gif" alt="Reference reel side by side with the generated reel" loading="lazy">
+      <figcaption>Left: a reel the user liked (someone else's). Right: what the agent generated from the user's own footage and a one-line script — same pacing, same layout, same music.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="tools">
+  <div class="wrap">
+    <span class="eyebrow">The toolbox</span>
+    <h2 class="display">Twelve tools, one workflow.</h2>
+    <p class="sub">Everything the agent needs to go from "make it look like that" to an mp4 — plus a <code>/mimic-mcp</code> slash-command prompt that walks it through the whole flow.</p>
+    <div class="toolgrid">
+      <div class="tool"><span class="tag">study</span><code>analyze_reference</code><p>Measures the reel into a style spec: cuts, transitions, motion, captions, beats.</p></div>
+      <div class="tool"><span class="tag">study</span><code>transcribe_reference</code><p>Word-level transcript of the reference, so the agent sees hook → build → payoff.</p></div>
+      <div class="tool"><span class="tag">study</span><code>extract_music</code><p>Rips the soundtrack so the new reel can use the same music.</p></div>
+      <div class="tool"><span class="tag">prep</span><code>trim_silence</code><p>Cuts silent gaps out of talking-head footage into a tight jump-cut clip.</p></div>
+      <div class="tool"><span class="tag">prep</span><code>generate_voiceover</code><p>Script → spoken voiceover with the built-in macOS voice. No API key.</p></div>
+      <div class="tool"><span class="tag">build</span><code>scaffold_reel</code><p>Style recipe in, ready-to-edit Remotion project out.</p></div>
+      <div class="tool"><span class="tag">build</span><code>render_reel</code><p>Renders to mp4 — draft for speed, final for the deliverable.</p></div>
+      <div class="tool"><span class="tag">build</span><code>review_render</code><p>Diffs the render against the reference into a fidelity score and fixes.</p></div>
+      <div class="tool"><span class="tag">build</span><code>open_in_studio</code><p>Human handoff: preview and tweak every field in Remotion Studio.</p></div>
+      <div class="tool"><span class="tag">ship</span><code>export_variants</code><p>Re-frames the finished reel to 9:16, 1:1, 4:5, 16:9 for cross-posting.</p></div>
+      <div class="tool"><span class="tag">reuse</span><code>list_presets</code> / <code>get_preset</code><p>Browse reusable style presets — built-ins plus your own.</p></div>
+      <div class="tool"><span class="tag">reuse</span><code>save_preset</code><p>Capture a style you nailed as a named preset for future reels.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="quickstart">
+  <div class="wrap">
+    <span class="eyebrow">Quickstart</span>
+    <h2 class="display">Hooked up in one command.</h2>
+    <p class="sub">Install <a href="https://ffmpeg.org">ffmpeg</a>, point your agent at the published package, and ask for a reel. No clone, no build.</p>
+    <div class="tabs">
+      <div class="tabbar" role="tablist">
+        <button role="tab" aria-selected="true" data-tab="claude">Claude Code</button>
+        <button role="tab" aria-selected="false" data-tab="codex">Codex</button>
+        <button role="tab" aria-selected="false" data-tab="cursor">Cursor</button>
+        <button role="tab" aria-selected="false" data-tab="gemini">Gemini CLI</button>
+        <button role="tab" aria-selected="false" data-tab="other">Anything else</button>
+      </div>
+      <div class="tabpanel active" id="tab-claude" role="tabpanel">
+<pre><span class="c"># prerequisites (macOS — see README for Windows/Linux)</span>
+brew install ffmpeg
+
+<span class="c"># add the server</span>
+claude mcp add mimic-mcp -- npx -y mimic-reels-mcp
+
+<span class="c"># then, inside Claude Code:</span>
+/mimic-mcp  my-screen-recording.mov  script.txt  reference-reel.mp4</pre>
+      </div>
+      <div class="tabpanel" id="tab-codex" role="tabpanel">
+        <p>Add to <code>~/.codex/config.toml</code>:</p>
+<pre>[mcp_servers.mimic-mcp]
+<span class="key">command</span> = <span class="s">"npx"</span>
+<span class="key">args</span> = [<span class="s">"-y"</span>, <span class="s">"mimic-reels-mcp"</span>]</pre>
+      </div>
+      <div class="tabpanel" id="tab-cursor" role="tabpanel">
+        <p>Add to <code>.cursor/mcp.json</code> (per-project) or <code>~/.cursor/mcp.json</code> (global):</p>
+<pre>{
+  <span class="key">"mcpServers"</span>: {
+    <span class="key">"mimic-mcp"</span>: {
+      <span class="key">"command"</span>: <span class="s">"npx"</span>,
+      <span class="key">"args"</span>: [<span class="s">"-y"</span>, <span class="s">"mimic-reels-mcp"</span>]
+    }
+  }
+}</pre>
+      </div>
+      <div class="tabpanel" id="tab-gemini" role="tabpanel">
+<pre>gemini mcp add mimic-mcp npx -y mimic-reels-mcp</pre>
+      </div>
+      <div class="tabpanel" id="tab-other" role="tabpanel">
+        <p>It's a standard stdio MCP server. Any client that takes a command + args:</p>
+<pre><span class="key">command</span>: <span class="s">npx</span>
+<span class="key">args</span>: [<span class="s">-y</span>, <span class="s">mimic-reels-mcp</span>]</pre>
+        <p style="margin-top:.75rem">Hacking on it instead? Clone, <code>npm install &amp;&amp; npm run build</code>, and use <code>node dist/index.js</code> — see <a href="https://github.com/pouyashahrdami/mimic-mcp/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a>.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="recipe">
+  <div class="wrap">
+    <span class="eyebrow">The contract</span>
+    <h2 class="display">One JSON recipe between taste and pixels.</h2>
+    <div class="recipe">
+      <div>
+        <p class="sub">The style recipe is what the agent writes after studying the reference — and what the renderer consumes. Everything past <code>caption</code> is optional; a minimal segment is just start, end, and text.</p>
+        <ul>
+          <li><b>Karaoke &amp; typewriter captions</b> with per-word timings from transcription</li>
+          <li><b>Ken-Burns punch-ins</b> with focus points and fitted easing</li>
+          <li><b>Multi-clip montages</b> — each segment can bring its own footage</li>
+          <li><b>Transition sounds</b> — pop, click, whoosh, riser, or your own file</li>
+          <li><b>Validated up front</b> — <code>scaffold_reel</code> rejects a bad recipe before you render</li>
+        </ul>
+      </div>
+<pre>{
+  <span class="key">"output"</span>: { <span class="key">"width"</span>: <span class="n">1080</span>, <span class="key">"height"</span>: <span class="n">1920</span>, <span class="key">"fps"</span>: <span class="n">30</span> },
+  <span class="key">"background"</span>: { <span class="key">"video"</span>: <span class="s">"my-footage.mov"</span> },
+  <span class="key">"music"</span>: { <span class="key">"file"</span>: <span class="s">"extracted-music.m4a"</span> },
+  <span class="key">"segments"</span>: [{
+    <span class="key">"start"</span>: <span class="n">0</span>, <span class="key">"end"</span>: <span class="n">2.1</span>,
+    <span class="key">"caption"</span>: <span class="s">"3 tools that changed how I code"</span>,
+    <span class="key">"captionStyle"</span>: <span class="s">"hook"</span>,
+    <span class="key">"captionAnimation"</span>: <span class="s">"karaoke"</span>,
+    <span class="key">"highlightColor"</span>: <span class="y">"#ffe000"</span>,
+    <span class="key">"zoom"</span>: { <span class="key">"from"</span>: <span class="n">1</span>, <span class="key">"to"</span>: <span class="n">1.3</span> },
+    <span class="key">"sound"</span>: <span class="s">"whoosh"</span>
+  }]
+}</pre>
+    </div>
+  </div>
+</section>
+
+<section id="opensource">
+  <div class="wrap">
+    <span class="eyebrow">Built in the open</span>
+    <h2 class="display">Serious about being a good open-source citizen.</h2>
+    <p class="sub">MIT-licensed, CI on every push, documented architecture, and a clear trust model. Issues and PRs welcome — the <code>presets/</code> folder is an easy first contribution.</p>
+    <div class="trust">
+      <a href="https://github.com/pouyashahrdami/mimic-mcp/blob/main/ARCHITECTURE.md"><b>Architecture</b><p>The analyze → recipe → render → review data flow, and what each module owns.</p></a>
+      <a href="https://github.com/pouyashahrdami/mimic-mcp/blob/main/CONTRIBUTING.md"><b>Contributing</b><p>Dev setup, code style, and how to open a PR that gets merged.</p></a>
+      <a href="https://github.com/pouyashahrdami/mimic-mcp/blob/main/SECURITY.md"><b>Security</b><p>Reporting vulnerabilities and the trust model for local media tooling.</p></a>
+      <a href="https://github.com/pouyashahrdami/mimic-mcp/blob/main/CHANGELOG.md"><b>Changelog</b><p>Notable changes per version, kept honest since v0.1.0.</p></a>
+      <a href="https://github.com/pouyashahrdami/mimic-mcp/blob/main/CODE_OF_CONDUCT.md"><b>Code of Conduct</b><p>Expectations for participation in the project.</p></a>
+      <a href="https://www.npmjs.com/package/mimic-reels-mcp"><b>npm · mimic-reels-mcp</b><p>Published package — <code>npx -y mimic-reels-mcp</code> and you're running.</p></a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 Pouya Shahrdami · MIT License</span>
+    <span>
+      <a href="https://github.com/pouyashahrdami/mimic-mcp">GitHub</a> ·
+      <a href="https://www.npmjs.com/package/mimic-reels-mcp">npm</a> ·
+      <a href="https://github.com/pouyashahrdami/mimic-mcp/issues">Issues</a> ·
+      <a href="https://modelcontextprotocol.io">MCP</a> ·
+      <a href="https://remotion.dev">Remotion</a>
+    </span>
+  </div>
+</footer>
+
+<script>
+document.querySelectorAll("[data-copy]").forEach(function(btn){
+  btn.addEventListener("click",function(){
+    navigator.clipboard.writeText(btn.dataset.copy).then(function(){
+      btn.textContent="copied";
+      setTimeout(function(){btn.textContent="copy"},1500);
+    });
+  });
+});
+document.querySelectorAll("[data-tab]").forEach(function(tab){
+  tab.addEventListener("click",function(){
+    document.querySelectorAll("[data-tab]").forEach(function(t){t.setAttribute("aria-selected","false")});
+    document.querySelectorAll(".tabpanel").forEach(function(p){p.classList.remove("active")});
+    tab.setAttribute("aria-selected","true");
+    document.getElementById("tab-"+tab.dataset.tab).classList.add("active");
+  });
+});
+</script>
+</body>
+</html>
