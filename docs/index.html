@@ -160,6 +160,13 @@ section .sub{color:var(--muted);max-width:40rem}
 .trust b{display:block;font-family:Archivo,sans-serif;font-weight:800;margin-bottom:.35rem}
 .trust p{font-size:.85rem;color:var(--muted)}
 
+/* showcase */
+.showgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1.25rem;margin-top:2rem}
+.show{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--card,rgba(255,255,255,0.03))}
+.show video{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;background:#0a0a14}
+.show figcaption{padding:.9rem 1.1rem;font-size:.85rem;color:var(--muted)}
+.show figcaption b{display:block;color:var(--text);font-family:Archivo,sans-serif;margin-bottom:.25rem}
+
 /* footer */
 footer{border-top:1px solid var(--line);padding:2.5rem 0;font-size:.85rem;color:var(--muted)}
 footer .wrap{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
@@ -180,6 +187,7 @@ footer a:hover{color:var(--text)}
       <a href="#tools">Tools</a>
       <a href="#quickstart">Quickstart</a>
       <a href="#recipe">Style recipe</a>
+      <a href="#showcase">Showcase</a>
       <a class="gh" href="https://github.com/pouyashahrdami/mimic-mcp">GitHub ↗</a>
     </div>
   </div>
@@ -335,6 +343,21 @@ claude mcp add mimic-mcp -- npx -y mimic-reels-mcp
   }]
 }</pre>
     </div>
+  </div>
+</section>
+
+<section id="showcase">
+  <div class="wrap">
+    <span class="eyebrow">Showcase</span>
+    <h2 class="display">Made with mimic-mcp.</h2>
+    <p class="sub">Reels from the community — style copies and fully generated from-scratch pieces. Audio is stripped from showcases; the design is the point.</p>
+    <div class="showgrid">
+      <figure class="show">
+        <video src="https://raw.githubusercontent.com/pouyashahrdami/mimic-mcp/main/showcases/mimic-ad-from-scratch.mp4" muted autoplay loop playsinline preload="metadata"></video>
+        <figcaption><b>SaaS ad, zero footage</b>The agent studied a payments-app ad as a design brief, then wrote four Remotion scenes from scratch — feature pills, a rings interlude, a terminal product shot, a wordmark finale — timed to the reference's measured cuts.</figcaption>
+      </figure>
+    </div>
+    <p class="sub" style="margin-top:1.5rem">Made something? <a href="https://github.com/pouyashahrdami/mimic-mcp/tree/main/showcases">Add it to the gallery</a> — one mp4 and one table row.</p>
   </div>
 </section>
 
