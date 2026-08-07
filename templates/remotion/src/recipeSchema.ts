@@ -27,6 +27,8 @@ export const segmentSchema = z.object({
   caption: z.string(),
   captionStyle: z.enum(["hook", "tip", "plain"]).default("plain"),
   image: z.string().optional(),
+  backgroundFill: z.string().optional(),
+  backgroundImage: z.string().optional(),
   backgroundStart: z.number().min(0).optional(),
   backgroundVideo: z.string().optional(),
   backgroundPosition: z.string().optional(),
@@ -53,11 +55,14 @@ export const recipeSchema = z.object({
     fps: z.number().int().positive().default(30),
     durationSeconds: z.number().positive(),
   }),
-  background: z.object({
-    video: z.string(),
-    fit: z.enum(["cover", "contain"]).default("cover"),
-    muted: z.boolean().default(true),
-  }),
+  background: z
+    .object({
+      video: z.string().optional(),
+      fill: z.string().optional(),
+      fit: z.enum(["cover", "contain"]).default("cover"),
+      muted: z.boolean().default(true),
+    })
+    .default({ fit: "cover", muted: true }),
   music: z
     .object({
       file: z.string(),

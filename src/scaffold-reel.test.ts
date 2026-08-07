@@ -48,6 +48,34 @@ describe("scaffoldReel", () => {
     expect(await readFile(path.join(publicDir, "clip-2.mp4"), "utf8")).toBe("footage B");
   });
 
+  it("scaffolds a from-scratch recipe: no video, staged background image", async () => {
+    tmp = await mkdtemp(path.join(tmpdir(), "scaffold-test-"));
+    const shot = path.join(tmp, "shot.png");
+    await writeFile(shot, "screenshot");
+
+    const projectDir = path.join(tmp, "project");
+    await scaffoldReel(
+      JSON.stringify({
+        output: { durationSeconds: 10 },
+        segments: [
+          { start: 0, end: 5, caption: "one", backgroundFill: "#0f0c29" },
+          { start: 5, end: 10, caption: "two", backgroundImage: shot },
+        ],
+      }),
+      projectDir
+    );
+
+    const localized = JSON.parse(
+      await readFile(path.join(projectDir, "recipe.json"), "utf8")
+    );
+    expect(localized.background.video).toBeUndefined();
+    expect(localized.segments[0].backgroundFill).toBe("#0f0c29");
+    expect(localized.segments[1].backgroundImage).toBe("shot.png");
+    expect(
+      await readFile(path.join(projectDir, "public", "shot.png"), "utf8")
+    ).toBe("screenshot");
+  });
+
   it("refuses a non-empty target that isn't a reel project, allows re-scaffolding one", async () => {
     tmp = await mkdtemp(path.join(tmpdir(), "scaffold-test-"));
     const video = path.join(tmp, "clip.mp4");

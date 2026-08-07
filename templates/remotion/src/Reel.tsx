@@ -280,11 +280,16 @@ const transitionWrap = (
   return {};
 };
 
-// One segment's background clip, optionally punched-in with an animated zoom.
-// The scale ramps from zoom.from to zoom.to across the segment, anchored at the
-// focal point so the interesting region stays framed — the screen-recording move.
+// One segment's background layer — footage, a still image, or a designed CSS
+// fill — optionally punched-in with an animated zoom. The scale ramps from
+// zoom.from to zoom.to across the segment, anchored at the focal point so the
+// interesting region stays framed — the screen-recording move. Stills and
+// fills ride the same zoom/transition machinery as footage, which is what lets
+// from-scratch reels (no video at all) reuse every move footage reels have.
 const SegmentBackground = ({
-  src,
+  video,
+  image,
+  fill,
   fit,
   muted,
   startFrom,
@@ -295,7 +300,9 @@ const SegmentBackground = ({
   transition,
   transitionFrames,
 }: {
-  src: string;
+  video?: string;
+  image?: string;
+  fill?: string;
   fit: string;
   muted: boolean;
   startFrom: number;
@@ -308,17 +315,21 @@ const SegmentBackground = ({
 }) => {
   const frame = useCurrentFrame();
   const { width, height } = useVideoConfig();
-  const video = (
+  const media = video ? (
     <OffthreadVideo
-      src={staticFile(src)}
+      src={staticFile(video)}
       muted={muted}
       startFrom={startFrom}
       playbackRate={speed ?? 1}
       style={backgroundStyle(fit, position)}
     />
+  ) : image ? (
+    <Img src={staticFile(image)} style={backgroundStyle(fit, position)} />
+  ) : (
+    <AbsoluteFill style={{ background: fill ?? "black" }} />
   );
 
-  let inner = video;
+  let inner = media;
   if (zoom) {
     const progress = Math.min(1, Math.max(0, frame / durationInFrames));
     const eased = (easings[zoom.easing ?? "linear"] ?? easings.linear)(progress);
@@ -330,7 +341,7 @@ const SegmentBackground = ({
           transformOrigin: `${zoom.focusX * 100}% ${zoom.focusY * 100}%`,
         }}
       >
-        {video}
+        {media}
       </AbsoluteFill>
     );
   }
@@ -366,13 +377,15 @@ const needsUnderlap = (t?: VideoTransition): boolean =>
 export const Reel = (recipe: Recipe) => {
   const { fps } = useVideoConfig();
 
-  // Any segment with backgroundStart, its own backgroundVideo, or a zoom turns
-  // the reel into a montage: each segment shows its own slice/source (and can be
-  // independently zoomed) instead of one continuous take.
+  // Any segment with its own background (slice, source, image, fill), a zoom,
+  // or a video transition turns the reel into a montage: each segment renders
+  // its own background layer instead of one continuous take.
   const isMontage = recipe.segments.some(
     (s) =>
       s.backgroundStart != null ||
       s.backgroundVideo != null ||
+      s.backgroundImage != null ||
+      s.backgroundFill != null ||
       s.backgroundPosition != null ||
       s.zoom != null ||
       s.speed != null ||
@@ -381,13 +394,16 @@ export const Reel = (recipe: Recipe) => {
 
   return (
     <AbsoluteFill style={{ backgroundColor: "black" }}>
-      {!isMontage && (
-        <OffthreadVideo
-          src={staticFile(recipe.background.video)}
-          muted={recipe.background.muted}
-          style={backgroundStyle(recipe.background.fit)}
-        />
-      )}
+      {!isMontage &&
+        (recipe.background.video ? (
+          <OffthreadVideo
+            src={staticFile(recipe.background.video)}
+            muted={recipe.background.muted}
+            style={backgroundStyle(recipe.background.fit)}
+          />
+        ) : recipe.background.fill ? (
+          <AbsoluteFill style={{ background: recipe.background.fill }} />
+        ) : null)}
 
       {recipe.music ? (
         <Audio src={staticFile(recipe.music.file)} volume={recipe.music.volume} />
@@ -399,7 +415,14 @@ export const Reel = (recipe: Recipe) => {
       {isMontage &&
         recipe.segments.map((segment, i) => {
           const bgStart = segment.backgroundStart;
-          const bgVideo = segment.backgroundVideo;
+          // Per-segment source wins over the global one; a segment-level image
+          // or fill means "no footage here", even when the reel has a video.
+          const bgImage = segment.backgroundImage;
+          const bgFill = segment.backgroundFill;
+          const bgVideo =
+            bgImage || bgFill
+              ? undefined
+              : (segment.backgroundVideo ?? recipe.background.video);
           const bgPosition = segment.backgroundPosition;
           const zoom = segment.zoom;
           const speed = segment.speed;
@@ -416,7 +439,9 @@ export const Reel = (recipe: Recipe) => {
               durationInFrames={durationInFrames + extendFrames}
             >
               <SegmentBackground
-                src={bgVideo ?? recipe.background.video}
+                video={bgVideo}
+                image={bgImage}
+                fill={bgFill ?? recipe.background.fill}
                 fit={recipe.background.fit}
                 muted={recipe.background.muted}
                 startFrom={Math.round((bgStart ?? segment.start) * fps)}

@@ -19,6 +19,22 @@ export const segmentSchema = z.object({
     .string()
     .optional()
     .describe("Optional image (e.g. a screenshot) shown as a floating card with the caption below it"),
+  backgroundFill: z
+    .string()
+    .optional()
+    .describe(
+      "CSS background for THIS segment instead of footage — a solid color or gradient " +
+        "(e.g. \"linear-gradient(160deg, #0f0c29, #302b63)\"). The from-scratch move: " +
+        "designed backgrounds with no video shot. Zooms and transitions still apply."
+    ),
+  backgroundImage: z
+    .string()
+    .optional()
+    .describe(
+      "Absolute path to a still image used as THIS segment's full-bleed background — " +
+        "a product screenshot, a designed frame, a photo. Rides the same zoom/transition " +
+        "machinery as footage: add `zoom` for the Ken-Burns product-demo move."
+    ),
   backgroundStart: z
     .number()
     .min(0)
@@ -194,11 +210,26 @@ export const recipeSchema = z.object({
     fps: z.number().int().positive().default(30),
     durationSeconds: z.number().positive(),
   }),
-  background: z.object({
-    video: z.string().describe("Absolute path to the user's footage"),
-    fit: z.enum(["cover", "contain"]).default("cover"),
-    muted: z.boolean().default(true),
-  }),
+  background: z
+    .object({
+      video: z
+        .string()
+        .optional()
+        .describe(
+          "Absolute path to the user's footage. Omit for a from-scratch reel built on " +
+            "fills, images, and scenes."
+        ),
+      fill: z
+        .string()
+        .optional()
+        .describe(
+          "CSS background (color or gradient) used for segments that specify no footage, " +
+            "image, or fill of their own — the reel's base canvas when there's no video."
+        ),
+      fit: z.enum(["cover", "contain"]).default("cover"),
+      muted: z.boolean().default(true),
+    })
+    .default({ fit: "cover", muted: true }),
   music: z
     .object({
       file: z.string().describe("Absolute path to the soundtrack (e.g. from extract_music)"),
@@ -224,6 +255,22 @@ export function parseRecipe(json: string): Recipe {
   for (const [i, seg] of recipe.segments.entries()) {
     if (seg.end <= seg.start) {
       throw new Error(`segment ${i}: end (${seg.end}) must be after start (${seg.start})`);
+    }
+    const sources = [seg.backgroundVideo, seg.backgroundImage, seg.backgroundFill].filter(
+      (s) => s != null
+    );
+    if (sources.length > 1) {
+      throw new Error(
+        `segment ${i}: backgroundVideo, backgroundImage and backgroundFill are mutually ` +
+          "exclusive — pick the one background this segment should show"
+      );
+    }
+    if (sources.length === 0 && !recipe.background.video && !recipe.background.fill) {
+      throw new Error(
+        `segment ${i}: no background anywhere — set backgroundFill, backgroundImage or ` +
+          "backgroundVideo on the segment, or background.video / background.fill globally " +
+          '(an explicit backgroundFill of "black" is fine for a minimal look)'
+      );
     }
     if (
       i === 0 &&

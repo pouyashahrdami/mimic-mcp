@@ -116,6 +116,56 @@ describe("parseRecipe", () => {
     expect(() => parseRecipe(JSON.stringify(ok))).not.toThrow();
   });
 
+  it("accepts a from-scratch recipe with no video anywhere", () => {
+    const scratch = {
+      output: { durationSeconds: 10 },
+      segments: [
+        {
+          start: 0,
+          end: 5,
+          caption: "designed",
+          backgroundFill: "linear-gradient(160deg, #0f0c29, #302b63)",
+        },
+        { start: 5, end: 10, caption: "shot", backgroundImage: "/shot.png", zoom: { to: 1.2 } },
+      ],
+    };
+    const recipe = parseRecipe(JSON.stringify(scratch));
+    expect(recipe.background.video).toBeUndefined();
+    expect(recipe.segments[0].backgroundFill).toContain("gradient");
+    expect(recipe.segments[1].backgroundImage).toBe("/shot.png");
+  });
+
+  it("accepts a global fill as the only background", () => {
+    const scratch = {
+      output: { durationSeconds: 10 },
+      background: { fill: "#111" },
+      segments: [{ start: 0, end: 5, caption: "hello" }],
+    };
+    expect(parseRecipe(JSON.stringify(scratch)).background.fill).toBe("#111");
+  });
+
+  it("rejects a segment with no background anywhere", () => {
+    const bad = {
+      output: { durationSeconds: 10 },
+      segments: [{ start: 0, end: 5, caption: "floating in the void" }],
+    };
+    expect(() => parseRecipe(JSON.stringify(bad))).toThrow("no background");
+  });
+
+  it("rejects a segment mixing background sources", () => {
+    const bad = structuredClone(minimalRecipe) as typeof minimalRecipe & {
+      segments: Record<string, unknown>[];
+    };
+    bad.segments[0] = {
+      start: 0,
+      end: 5,
+      caption: "x",
+      backgroundImage: "/shot.png",
+      backgroundFill: "black",
+    };
+    expect(() => parseRecipe(JSON.stringify(bad))).toThrow("mutually exclusive");
+  });
+
   it("rejects a recipe whose last segment overruns the output duration", () => {
     const bad = structuredClone(minimalRecipe);
     bad.segments[0] = { start: 0, end: 11, caption: "x" };

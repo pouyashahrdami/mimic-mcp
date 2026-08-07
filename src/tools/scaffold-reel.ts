@@ -46,7 +46,9 @@ export async function scaffoldReel(
 ): Promise<{ projectDir: string; nextStep: string }> {
   const recipe = parseRecipe(recipeJson);
 
-  await assertExists(recipe.background.video, "background video");
+  if (recipe.background.video) {
+    await assertExists(recipe.background.video, "background video");
+  }
   if (recipe.music) {
     await assertExists(recipe.music.file, "music file");
   }
@@ -90,13 +92,10 @@ export async function scaffoldReel(
     return name;
   }
 
-  const localized: Recipe = {
-    ...recipe,
-    background: {
-      ...recipe.background,
-      video: await stage(recipe.background.video),
-    },
-  };
+  const localized: Recipe = { ...recipe, background: { ...recipe.background } };
+  if (recipe.background.video) {
+    localized.background.video = await stage(recipe.background.video);
+  }
 
   if (recipe.music) {
     localized.music = { ...recipe.music, file: await stage(recipe.music.file) };
@@ -112,6 +111,10 @@ export async function scaffoldReel(
     if (segment.backgroundVideo) {
       await assertExists(segment.backgroundVideo, "segment background video");
       local.backgroundVideo = await stage(segment.backgroundVideo);
+    }
+    if (segment.backgroundImage) {
+      await assertExists(segment.backgroundImage, "segment background image");
+      local.backgroundImage = await stage(segment.backgroundImage);
     }
     if (segment.sound) {
       const soundPath = resolveSound(segment.sound);
