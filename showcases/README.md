@@ -6,6 +6,7 @@ gallery the [website](https://pouyashahrdami.github.io/mimic-mcp/) pulls from.
 | Reel | Workflow | Made by | Notes |
 |------|----------|---------|-------|
 | [mimic-ad-from-scratch.mp4](mimic-ad-from-scratch.mp4) | `generate-scratch` | [@pouyashahrdami](https://github.com/pouyashahrdami) | A SaaS-ad style reel built with **zero footage**: a reference ad analyzed as a design brief, then four agent-written Remotion scenes (feature pills, rings interlude, terminal product shot, wordmark finale), gradient statement pages, and cut timings copied from the measured reference. |
+| [music-lyric-reel.mp4](music-lyric-reel.mp4) | `mimic-mcp` | [@pouyashahrdami](https://github.com/pouyashahrdami) | A 35s vertical lyric reel copied from a screen recording: the agent rebuilt the player chrome as custom Remotion scenes — a karaoke lyrics panel that highlights line by line, a floating album-art card, a mini now-playing card and a bottom transport bar — all layered over the music-video background and held to the reference's timing. |
 
 ## Add yours
 

@@ -161,9 +161,10 @@ section .sub{color:var(--muted);max-width:40rem}
 .trust p{font-size:.85rem;color:var(--muted)}
 
 /* showcase */
-.showgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1.25rem;margin-top:2rem}
+.showgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1.25rem;margin-top:2rem;align-items:start}
 .show{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--card,rgba(255,255,255,0.03))}
 .show video{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;background:#0a0a14}
+.show.portrait video{aspect-ratio:9/16;object-fit:contain}
 .show figcaption{padding:.9rem 1.1rem;font-size:.85rem;color:var(--muted)}
 .show figcaption b{display:block;color:var(--text);font-family:Archivo,sans-serif;margin-bottom:.25rem}
 
@@ -355,6 +356,10 @@ claude mcp add mimic-mcp -- npx -y mimic-reels-mcp
       <figure class="show">
         <video src="https://raw.githubusercontent.com/pouyashahrdami/mimic-mcp/main/showcases/mimic-ad-from-scratch.mp4" muted autoplay loop playsinline preload="metadata"></video>
         <figcaption><b>SaaS ad, zero footage</b>The agent studied a payments-app ad as a design brief, then wrote four Remotion scenes from scratch — feature pills, a rings interlude, a terminal product shot, a wordmark finale — timed to the reference's measured cuts.</figcaption>
+      </figure>
+      <figure class="show portrait">
+        <video src="https://raw.githubusercontent.com/pouyashahrdami/mimic-mcp/main/showcases/music-lyric-reel.mp4" muted autoplay loop playsinline preload="metadata"></video>
+        <figcaption><b>Lyric reel, player chrome rebuilt</b>Copied from a 35s screen recording: a karaoke lyrics panel highlighting line by line, a floating album-art card, a mini now-playing card and a transport bar — all rebuilt as Remotion scenes over the video background, held to the reference's timing.</figcaption>
       </figure>
     </div>
     <p class="sub" style="margin-top:1.5rem">Made something? <a href="https://github.com/pouyashahrdami/mimic-mcp/tree/main/showcases">Add it to the gallery</a> — one mp4 and one table row.</p>
