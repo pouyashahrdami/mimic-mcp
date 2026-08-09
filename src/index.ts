@@ -19,6 +19,7 @@ import { editByTranscript } from "./tools/edit-by-transcript.js";
 import { critiqueReel } from "./tools/critique-reel.js";
 import { pickCoverFrame } from "./tools/pick-cover-frame.js";
 import { analyzeCreator } from "./tools/analyze-creator.js";
+import { trackSubject } from "./tools/track-subject.js";
 import { renderReel, renderStill } from "./tools/render-reel.js";
 import { reviewRender } from "./tools/review-render.js";
 import { openInStudio } from "./tools/open-in-studio.js";
@@ -177,6 +178,51 @@ server.registerTool(
           minSilenceSeconds: min_silence_seconds,
         })
       );
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "track_subject",
+  {
+    title: "Follow a moving subject across a shot",
+    description:
+      "Measure where the subject is over TIME, not once per span, and return keyframes for a " +
+      "segment's `backgroundTrack` so a cover-crop follows someone who moves. " +
+      "`suggest_framing` gives one fixed point, which is right for a locked-off shot and " +
+      "loses anyone who walks — cropping 16:9 to 9:16 throws away two thirds of the width. " +
+      "The measurements are smoothed and speed-limited, so a glitch can't become a whip pan, " +
+      "and a subject that barely moved comes back as a single `backgroundPosition` instead of " +
+      "a track that would only jitter.",
+    inputSchema: {
+      video: z.string().describe("Absolute path to the footage"),
+      spans: z
+        .array(
+          z.object({
+            start: z.number().min(0).describe("Span start in seconds"),
+            end: z.number().positive().describe("Span end in seconds"),
+          })
+        )
+        .optional()
+        .describe(
+          "Track these spans separately — pass your recipe's segment start/end times. " +
+            "Omit to track the whole clip as one."
+        ),
+      window_seconds: z
+        .number()
+        .min(0.2)
+        .optional()
+        .describe(
+          "How often to re-measure the subject. Default 0.5s. Smaller follows faster movement " +
+            "but measures from fewer frames."
+        ),
+    },
+  },
+  async ({ video, spans, window_seconds }) => {
+    try {
+      return ok(await trackSubject(video, spans, { windowSeconds: window_seconds }));
     } catch (err) {
       return fail(err);
     }

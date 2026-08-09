@@ -38,6 +38,16 @@ export const segmentSchema = z.object({
   backgroundStart: z.number().min(0).optional(),
   backgroundVideo: z.string().optional(),
   backgroundPosition: z.string().optional(),
+  backgroundTrack: z
+    .array(
+      z.object({
+        atSeconds: z.number().min(0),
+        x: z.number().min(0).max(1),
+        y: z.number().min(0).max(1),
+      })
+    )
+    .min(2)
+    .optional(),
   videoTransitionIn: videoTransitionSchema.optional(),
   zoom: zoomSchema.optional(),
   speed: z.number().positive().max(16).optional(),

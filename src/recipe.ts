@@ -70,6 +70,25 @@ export const segmentSchema = z.object({
         "Use when cover-cropping cuts off the subject — a portrait clip in a " +
         "landscape frame crops to its middle unless you aim it."
     ),
+  backgroundTrack: z
+    .array(
+      z.object({
+        atSeconds: z
+          .number()
+          .min(0)
+          .describe("Seconds from THIS segment's start, not from the reel's"),
+        x: z.number().min(0).max(1).describe("Horizontal crop centre, 0..1"),
+        y: z.number().min(0).max(1).describe("Vertical crop centre, 0..1"),
+      })
+    )
+    .min(2)
+    .optional()
+    .describe(
+      "Keyframed crop centre that FOLLOWS a moving subject, interpolated between keyframes. " +
+        "Overrides `backgroundPosition`, which is one fixed point and loses anyone who walks " +
+        "out of a cover-cropped frame. Get it from track_subject, which measures the movement " +
+        "and returns null rather than a track when the subject barely moved."
+    ),
   videoTransitionIn: z
     .object({
       kind: z

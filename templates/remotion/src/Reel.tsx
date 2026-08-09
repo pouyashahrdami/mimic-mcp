@@ -351,6 +351,32 @@ const backgroundStyle = (fit: string, position?: string): CSSProperties => ({
   ...(position ? { objectPosition: position } : {}),
 });
 
+// Where a keyframed crop sits at `atSeconds` (segment-relative), holding the
+// ends rather than extrapolating past them. Mirrors positionAt in the server's
+// subject-track.ts, which is where the curve is unit-tested.
+const trackPositionAt = (
+  track: { atSeconds: number; x: number; y: number }[],
+  atSeconds: number
+): string => {
+  const first = track[0];
+  const last = track[track.length - 1];
+  if (atSeconds <= first.atSeconds) return positionString(first.x, first.y);
+  if (atSeconds >= last.atSeconds) return positionString(last.x, last.y);
+
+  for (let i = 1; i < track.length; i++) {
+    const b = track[i];
+    if (atSeconds > b.atSeconds) continue;
+    const a = track[i - 1];
+    const span = b.atSeconds - a.atSeconds;
+    const t = span <= 0 ? 0 : (atSeconds - a.atSeconds) / span;
+    return positionString(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t);
+  }
+  return positionString(last.x, last.y);
+};
+
+const positionString = (x: number, y: number): string =>
+  `${(x * 100).toFixed(2)}% ${(y * 100).toFixed(2)}%`;
+
 const easings: Record<string, (t: number) => number> = {
   linear: (t) => t,
   easeIn: (t) => t * t,
@@ -412,6 +438,7 @@ const SegmentBackground = ({
   muted,
   startFrom,
   position,
+  track,
   zoom,
   speed,
   durationInFrames,
@@ -426,6 +453,7 @@ const SegmentBackground = ({
   muted: boolean;
   startFrom: number;
   position?: string;
+  track?: { atSeconds: number; x: number; y: number }[];
   zoom?: Zoom;
   speed?: number;
   durationInFrames: number;
@@ -433,7 +461,10 @@ const SegmentBackground = ({
   transitionFrames: number;
 }) => {
   const frame = useCurrentFrame();
-  const { width, height } = useVideoConfig();
+  const { width, height, fps } = useVideoConfig();
+  // A track follows a moving subject, so it wins over the single fixed point.
+  const framePosition =
+    track && track.length > 0 ? trackPositionAt(track, frame / fps) : position;
   const media = sceneEl ? (
     <AbsoluteFill>{sceneEl}</AbsoluteFill>
   ) : video ? (
@@ -442,10 +473,10 @@ const SegmentBackground = ({
       muted={muted}
       startFrom={startFrom}
       playbackRate={speed ?? 1}
-      style={backgroundStyle(fit, position)}
+      style={backgroundStyle(fit, framePosition)}
     />
   ) : image ? (
-    <Img src={staticFile(image)} style={backgroundStyle(fit, position)} />
+    <Img src={staticFile(image)} style={backgroundStyle(fit, framePosition)} />
   ) : (
     <AbsoluteFill style={{ background: fill ?? "black" }} />
   );
@@ -513,6 +544,7 @@ export const Reel = (recipe: Recipe) => {
       s.backgroundFill != null ||
       s.scene != null ||
       s.backgroundPosition != null ||
+      s.backgroundTrack != null ||
       s.zoom != null ||
       s.speed != null ||
       s.videoTransitionIn != null
@@ -606,6 +638,7 @@ export const Reel = (recipe: Recipe) => {
                 muted={recipe.background.muted}
                 startFrom={Math.round((bgStart ?? segment.start) * fps)}
                 position={bgPosition}
+                track={segment.backgroundTrack}
                 zoom={zoom}
                 speed={speed}
                 durationInFrames={durationInFrames}
