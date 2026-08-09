@@ -6,11 +6,103 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-09
+
+The your-footage release. The reference side of this project was measured in detail
+while the user's own material arrived as "here's a folder, good luck" — so the agent
+had to be handed exactly the right clip, already trimmed, and every reel built from
+someone else's reference came out looking like theirs. This closes both gaps, and adds
+the feedback loop a reel with no reference could never get.
+
 ### Added
+
+- **`index_footage`** — turns a folder of clips into a ranked shot library. Splits every
+  clip into shots and grades each one on what a shot can be bad at (exposure, flatness,
+  surviving edge detail, camera shake) into a 0–1 score with named flaws, plus subject
+  position and a filmstrip. Shake is measured from the *direction* the frames travelled
+  rather than from how much changed: a constant-amplitude wobble moves the same number
+  of pixels per frame as a steady pan and is invisible to a magnitude-only measure. Pass
+  your segment durations as `needs` and it assigns a shot per segment, filling the
+  longest need first so a short segment can't strand a long one, and reporting the
+  shortfall instead of silently picking something too short.
+
+- **`edit_by_transcript`** — cuts footage by what was *said*, which `trim_silence` cannot
+  see: the "um" that isn't a gap, and the flubbed sentence you remove by quoting it
+  rather than hunting its timecode. Crutch words (`like`, `basically`, `you know`) are
+  opt-in, since cutting them changes the sentence. Returns every cut with what was said
+  there, plus captions from the actual take, re-timed onto the edited clip with
+  segment-relative word timings. `dry_run` plans without encoding.
+
+- **`critique_reel`** — scores a reel against *itself*. `review_render` answers "does
+  this match the reference?", which is the wrong question when there isn't one, so a
+  from-scratch reel had no automated feedback at all. Measures what makes any reel
+  unreadable regardless of style: captions going past faster than anyone reads them, an
+  opening that says nothing in the first 1.5s, text with no outline or pill to separate
+  it from the footage, uniform segment lengths, dead air, over-long holds, a landscape
+  output. Every issue names the recipe field to change and carries the number behind it.
+
+- **`track_subject`** and the segment field **`backgroundTrack`** — follows a subject
+  that moves instead of aiming at where it was. `suggest_framing` gives one fixed point
+  per span, which is right for a locked-off shot and loses anyone who walks, since
+  cropping 16:9 into 9:16 throws away two thirds of the width. Measurements are
+  gap-filled by holding the last known position (interpolating would invent a movement
+  nobody made), smoothed, and speed-limited so a glitched window cannot become a whip
+  pan. A subject that barely moved comes back as a single position rather than a track
+  that would only jitter; a shot with no clear subject comes back as neither.
+
+- **A brand layer** — the recipe gains `overlays` (image / text / progressBar), drawn
+  last so a logo bug or handle cannot be covered by a dip or transition, and sized off
+  the frame's own width so one recipe brands a 9:16 reel and a 1:1 crop identically.
+  `scaffold_reel` stages overlay images into `public/` like any other media.
+  **`save_brand_kit`** / **`list_brand_kits`** / **`apply_brand_kit`** store a standing
+  set of those marks plus caption defaults and fonts. A preset carries the look of one
+  reference; a brand kit carries what shouldn't change when you copy a new reference at
+  all, so the two compose. Merging is additive and idempotent — applying twice leaves
+  one logo — and the recipe wins over the kit unless you pass `overwrite`.
+
+- **`analyze_creator`** — learns a style from a body of work instead of one reel. A
+  single reference cannot tell you which of its choices were the style and which were
+  that video's subject. Reports distributions rather than averages (shot length
+  p25..p75, transition frequencies, caption band and case, tempo) plus a `consistency`
+  score, because the failure mode is silently averaging several different styles into
+  one nobody made. Optionally saves a preset built from the middle of the measurements.
+
+- **`localize_reel`** — the same reel in another language. Owns what goes silently wrong
+  when you just swap the strings: `wordTimings` are offsets into a *specific sentence*,
+  so a translated line karaokes the wrong words (dropped unless new ones are supplied);
+  stale `emphasisWords` are cleared; and because languages are not the same length, the
+  translated reel is re-scored for reading speed — a line that read comfortably in
+  English can flash past in German at the same segment timing. Writes a renderable
+  recipe plus `.srt`/`.vtt` per language.
+
+- **`hook_variants`** — one recipe per alternative opening with nothing else touched.
+  The first second and a half is what creators actually A/B, and rebuilding a whole reel
+  per hook both spends a render on byte-identical frames and lets the variants differ in
+  more than the thing under test. Each variant reports which segments changed, so
+  `render_reel`'s `segments` makes a variant cost one segment instead of a reel, and
+  each is re-scored for reading speed over its own changed segments.
+
+- **`pick_cover_frame`** — chooses the thumbnail by measuring every candidate on
+  exposure, contrast and edge detail. Platforms otherwise default to frame 0, which on a
+  reel that opens with a dip-to-black is a black square. Returns the full ranking so a
+  different frame can be chosen by eye.
 
 - `captionInset` — how far a top- or bottom-banded caption sits from that edge, as a
   fraction of the output height. Lower it when copying a reference that deliberately
   runs text to the edge.
+
+### Changed
+
+- The jump-cut filter moved into `ffmpeg.concatRanges`, now shared by `trim_silence` and
+  `edit_by_transcript` and covered end to end.
+- Single-frame statistics moved into `frame-quality.ts`, shared by shot grading and
+  cover-frame picking. The two want opposite verdicts from the same numbers — one asks
+  what is wrong with a frame, the other which is most arresting — so the stats are
+  shared and the scoring is not.
+- Caption-swap invalidation moved into `caption-swap.ts`, shared by localization and
+  hook variants, which are both "same reel, different words" and break identically.
+- `writePreset` split out of `savePreset`, so a preset built from measurements takes the
+  same collision-safe path as one extracted from a recipe.
 
 ### Fixed
 
@@ -176,8 +268,9 @@ self-review loop and everything around it. Published to npm as
   the workflow.
 - **vitest** test harness.
 
-[Unreleased]: https://github.com/pouyashahrdami/mimic-mcp/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/pouyashahrdami/mimic-mcp/compare/v0.4.0...HEAD
 
+[0.4.0]: https://github.com/pouyashahrdami/mimic-mcp/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/pouyashahrdami/mimic-mcp/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/pouyashahrdami/mimic-mcp/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/pouyashahrdami/mimic-mcp/releases/tag/v0.1.0
