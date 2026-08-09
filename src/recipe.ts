@@ -183,6 +183,18 @@ export const segmentSchema = z.object({
         "that keeps TikTok/Reels captions readable over ANY footage. Reach for this " +
         "instead of a drop shadow when the reference's text stays crisp over busy shots."
     ),
+  captionInset: z
+    .number()
+    .min(0)
+    .max(0.45)
+    .optional()
+    .describe(
+      "How far a top/center-banded or bottom-banded caption sits from that edge, as a " +
+        "fraction of the output HEIGHT. Defaults clear the platform chrome (TikTok's " +
+        "caption bar starts around 0.82 from the top, its tab bar ends around 0.08). " +
+        "Lower it only when copying a reference that deliberately runs text to the edge — " +
+        "and check with review_render's `platform` that it stays readable."
+    ),
   captionBackground: z
     .string()
     .optional()

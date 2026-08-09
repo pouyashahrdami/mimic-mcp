@@ -6,7 +6,20 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `captionInset` — how far a top- or bottom-banded caption sits from that edge, as a
+  fraction of the output height. Lower it when copying a reference that deliberately
+  runs text to the edge.
+
 ### Fixed
+
+- **Bottom captions shipped underneath the platform's caption bar.** The template inset
+  them by a fixed 220px, which is a fifth of a 960-tall frame but only a ninth of a
+  1920-tall one — so the default drifted with the output size and, at the standard
+  1080x1920, ended at y=0.885, inside TikTok's and Instagram's caption bars. Insets are
+  now a fraction of frame height, defaulting clear of the chrome on all three supported
+  platforms. Found by `review_render`'s own safe-area check.
 
 - **Scene-cut detection was blind to color.** Frames were decoded to grayscale, so a cut
   between two shots of equal brightness but different color registered as no change at

@@ -46,6 +46,7 @@ export const segmentSchema = z.object({
   captionFont: z.string().optional(),
   captionSize: z.number().positive().optional(),
   captionWeight: z.number().min(100).max(900).optional(),
+  captionInset: z.number().min(0).max(0.45).optional(),
   captionOutline: captionOutlineSchema.optional(),
   captionBackground: z.string().optional(),
   emphasisWords: z.array(z.number().int().min(0)).optional(),

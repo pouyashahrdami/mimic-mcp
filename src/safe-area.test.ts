@@ -81,6 +81,29 @@ describe("checkSafeArea", () => {
     expect(issues[0]).toMatchObject({ start: 3.5, end: 5.25 });
   });
 
+  it("clears every platform with the template's default bottom inset", () => {
+    // The template insets a bottom caption by BOTTOM_INSET (0.2) of the frame
+    // height, so its box ends at y = 0.8. Before that was a fraction it was a
+    // fixed 220px, which at 1080x1920 ended at y = 0.885 — inside TikTok's and
+    // Instagram's caption bars. Keep these in step with Reel.tsx.
+    const bottomCaption = caption({
+      text: "default bottom caption",
+      y: 0.8 - 0.07,
+      h: 0.07,
+      band: "bottom",
+    });
+    for (const name of PLATFORM_NAMES) {
+      expect(checkSafeArea([bottomCaption], PLATFORMS[name])).toEqual([]);
+    }
+  });
+
+  it("clears every platform with the template's default top inset", () => {
+    const topCaption = caption({ text: "default top caption", y: 0.12, h: 0.07, band: "top" });
+    for (const name of PLATFORM_NAMES) {
+      expect(checkSafeArea([topCaption], PLATFORMS[name])).toEqual([]);
+    }
+  });
+
   it("defines the same shape for every platform", () => {
     expect(PLATFORM_NAMES.length).toBeGreaterThan(0);
     for (const name of PLATFORM_NAMES) {

@@ -247,6 +247,7 @@ The recipe is the contract between "agent understands the reference" and "code r
       "transitionIn": "cut",           // cut | fade | slide
       "captionAnimation": "karaoke",   // none | karaoke | typewriter
       "highlightColor": "#ffe000",     // active-word color for karaoke
+      "captionInset": 0.2,             // distance from the top/bottom edge, as a fraction of height
       "captionOutline": { "color": "#000", "widthPx": 8 }, // hard stroke, readable over anything
       "captionBackground": "rgba(0,0,0,0.7)",  // rounded pill behind the text
       "emphasisWords": [4],            // pop these words (0-based) in emphasisColor

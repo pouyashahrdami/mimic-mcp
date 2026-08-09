@@ -21,6 +21,13 @@ import { scenes } from "./scenes";
 
 const TRANSITION_FRAMES = 12;
 const DEFAULT_HIGHLIGHT = "#ffe000";
+/**
+ * Default caption insets, as a fraction of frame height. A bottom caption has
+ * to finish above the platform's caption bar (TikTok's starts ~0.82 down,
+ * Instagram's ~0.80), and a top one has to start below the tab bar (~0.08).
+ */
+const BOTTOM_INSET = 0.2;
+const TOP_INSET = 0.12;
 
 /**
  * Load the recipe's Google Fonts before the first frame is captured.
@@ -217,6 +224,7 @@ const Caption = ({
   durationInFrames: number;
 }) => {
   const frame = useCurrentFrame(); // relative to the enclosing Sequence
+  const { height } = useVideoConfig();
 
   let opacity = 1;
   let translateX = 0;
@@ -302,6 +310,12 @@ const Caption = ({
   }
 
   const position = segment.captionPosition ?? (isTip ? "bottom" : "center");
+  // Insets are a FRACTION of frame height, not fixed pixels: the same 220px
+  // was a fifth of a 960-tall frame and a ninth of a 1920-tall one, so the
+  // "safe" default drifted with the output size. The defaults clear the
+  // platform chrome — see src/safe-area.ts in mimic-mcp for the regions.
+  const inset =
+    segment.captionInset ?? (position === "top" ? TOP_INSET : BOTTOM_INSET);
   return (
     <AbsoluteFill
       style={{
@@ -309,8 +323,8 @@ const Caption = ({
           position === "top" ? "flex-start" : position === "bottom" ? "flex-end" : "center",
         alignItems: "center",
         padding: 64,
-        paddingTop: position === "top" ? 220 : 64,
-        paddingBottom: position === "bottom" ? 220 : 64,
+        paddingTop: position === "top" ? height * inset : 64,
+        paddingBottom: position === "bottom" ? height * inset : 64,
       }}
     >
       {/* full-width wrapper: captionEl's maxWidth must resolve against the
