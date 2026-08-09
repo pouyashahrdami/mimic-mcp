@@ -11,7 +11,7 @@ import { transcribeReference } from "./tools/transcribe-reference.js";
 import { generateVoiceover } from "./tools/generate-voiceover.js";
 import { draftRecipeTool } from "./tools/draft-recipe.js";
 import { scaffoldReel } from "./tools/scaffold-reel.js";
-import { renderReel } from "./tools/render-reel.js";
+import { renderReel, renderStill } from "./tools/render-reel.js";
 import { reviewRender } from "./tools/review-render.js";
 import { openInStudio } from "./tools/open-in-studio.js";
 import { generateScratchPrompt, mimicMcpPrompt } from "./prompt.js";
@@ -284,13 +284,57 @@ server.registerTool(
             "re-gains to. Final renders only; the video stream is copied, not re-encoded. " +
             "Turn off only when handing the mp4 to another mixing stage."
         ),
+      segments: z
+        .array(z.number().int().min(0))
+        .optional()
+        .describe(
+          "Render ONLY these segment indices (0-based), as a fast check on a fix instead " +
+            "of paying for the whole reel. Lands in its own out/reel-segments-N.mp4 so it " +
+            "never overwrites the deliverable, and skips loudness normalization."
+        ),
     },
   },
-  async ({ project_dir, quality, normalize_audio }) => {
+  async ({ project_dir, quality, normalize_audio, segments }) => {
     try {
       return ok({
-        output: await renderReel(project_dir, quality, { normalizeAudio: normalize_audio }),
+        output: await renderReel(project_dir, quality, {
+          normalizeAudio: normalize_audio,
+          segments,
+        }),
       });
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "render_still",
+  {
+    title: "Render a single frame",
+    description:
+      "Render ONE frame of the reel to a PNG — the cheapest look at a layout change " +
+      "(caption size, position, wrapping, a scene's composition). Seconds instead of a " +
+      "whole encode. Use it while iterating on how a segment looks; use render_reel when " +
+      "you need to judge timing, motion or audio.",
+    inputSchema: {
+      project_dir: z.string().describe("A directory created by scaffold_reel"),
+      segment: z
+        .number()
+        .int()
+        .min(0)
+        .optional()
+        .describe("Segment index (0-based); the frame is taken from its midpoint"),
+      at_seconds: z
+        .number()
+        .min(0)
+        .optional()
+        .describe("Exact time into the reel, as an alternative to segment"),
+    },
+  },
+  async ({ project_dir, segment, at_seconds }) => {
+    try {
+      return ok({ output: await renderStill(project_dir, { segment, atSeconds: at_seconds }) });
     } catch (err) {
       return fail(err);
     }

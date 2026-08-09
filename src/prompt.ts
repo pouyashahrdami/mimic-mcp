@@ -61,6 +61,10 @@ Work through these steps in order:
 6. Call scaffold_reel with the edited recipe and a fresh project directory.
 
 7. Call render_reel on that directory. First render is slow (installs Remotion).
+   While iterating afterwards, don't re-render the whole reel to check one fix:
+   render_still answers layout questions (caption size, wrapping, position) for the
+   price of a single frame, and render_reel with \`segments: [n]\` re-renders just the
+   segments you touched. Save the full render for when timing or audio is the question.
 
 8. Review your own work: call review_render with the project directory, the
    reference video, and the \`platform\` the user is posting to (tiktok / instagram /

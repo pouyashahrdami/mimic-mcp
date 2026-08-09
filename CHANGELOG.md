@@ -50,6 +50,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   existed — a reel could score 100/100 on fidelity and still ship with its text behind
   the caption bar.
 
+- **A cheaper fix loop.** `render_reel` takes `segments: [3, 4]` to render only those
+  segments (into their own `out/reel-segments-3-4.mp4`, so a work-in-progress view can
+  never overwrite the deliverable, and skipping loudness normalization since a fragment
+  shouldn't set its level from material the reel doesn't have). New `render_still`
+  renders a single frame to PNG for layout questions that don't need an encode at all.
+
 ### Fixed
 
 - `render_reel` applied a **relative** project directory twice (it also passes the
