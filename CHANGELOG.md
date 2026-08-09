@@ -56,6 +56,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   shouldn't set its level from material the reel doesn't have). New `render_still`
   renders a single frame to PNG for layout questions that don't need an encode at all.
 
+- **Subtitle sidecars** — `export_captions` writes `.srt` / `.vtt` next to the render.
+  The reel burns captions into the pixels, which is what makes it look right but leaves
+  the text invisible to platforms. Long captions are split into readable cues by word
+  count and duration, landing on measured word boundaries when the recipe has
+  `wordTimings`, and never holding a cue across a pause.
+
 ### Fixed
 
 - `render_reel` applied a **relative** project directory twice (it also passes the

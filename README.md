@@ -59,6 +59,7 @@ The server gives the agent the tools to pull that off:
 | `review_render` | The measured QA loop: runs the render through the **same analyzer** as the reference and diffs the two style specs — cut timing, transition kinds, motion, caption timing/position/size — into a 0-100 **fidelity score** with actionable issues, each naming the recipe field to fix. Plus side-by-side frames per segment for the visual pass. Pass `platform` (`tiktok`/`instagram`/`youtube-shorts`) and it also reports **captions the app's own UI would cover** — the caption bar, action rail and tab bar that no fidelity score knows about. |
 | `open_in_studio` | Launches **Remotion Studio** for the project and returns the URL — the human handoff. Preview the reel, tweak every recipe field in Studio's props panel (the composition is zod-schema'd), and export the final video interactively. |
 | `export_variants` | Re-frames the finished reel into other aspect ratios (9:16, 1:1, 4:5, 16:9) for cross-posting — center-crop or blur-padded. |
+| `export_captions` | Writes the reel's captions as **`.srt` / `.vtt` sidecars**. Burned-in captions are invisible to platforms — no accessibility, no search, no auto-translate — and the recipe already knows every line and its timing. Long captions are split into readable cues, on real word boundaries (and never across a pause) when `wordTimings` are present. |
 
 **Reusable styles**
 

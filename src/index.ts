@@ -5,6 +5,7 @@ import { z } from "zod";
 import { analyzeReference } from "./tools/analyze-reference.js";
 import { extractMusic } from "./tools/extract-music.js";
 import { trimSilenceTool } from "./tools/trim-silence.js";
+import { exportCaptions } from "./tools/export-captions.js";
 import { exportVariants } from "./tools/export-variants.js";
 import { listPresets, getPreset, savePreset } from "./presets.js";
 import { transcribeReference } from "./tools/transcribe-reference.js";
@@ -370,6 +371,32 @@ server.registerTool(
   async ({ project_dir, reference_video, platform }) => {
     try {
       return ok(await reviewRender(project_dir, reference_video, platform));
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "export_captions",
+  {
+    title: "Export subtitle sidecars",
+    description:
+      "Write the reel's captions out as .srt / .vtt files next to the render. The reel " +
+      "burns its captions into the pixels, which leaves them invisible to platforms — no " +
+      "accessibility, no search, no auto-translate. Long captions are split into readable " +
+      "cues, on real word boundaries when the recipe has wordTimings.",
+    inputSchema: {
+      project_dir: z.string().describe("A directory created by scaffold_reel"),
+      formats: z
+        .array(z.enum(["srt", "vtt"]))
+        .default(["srt"])
+        .describe("Subtitle formats to write. srt is the common upload format; vtt for web."),
+    },
+  },
+  async ({ project_dir, formats }) => {
+    try {
+      return ok(await exportCaptions(project_dir, formats));
     } catch (err) {
       return fail(err);
     }
