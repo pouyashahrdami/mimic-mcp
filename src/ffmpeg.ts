@@ -304,6 +304,39 @@ export async function detectBeats(
   return { beats, bpm: estimateBpm(beats) };
 }
 
+/**
+ * Keep only `ranges` of a clip, concatenated back into one continuous file —
+ * the jump-cut primitive. Shared by silence trimming and transcript editing,
+ * which differ only in how they decide what to keep.
+ */
+export async function concatRanges(
+  videoPath: string,
+  outPath: string,
+  ranges: { start: number; end: number }[]
+): Promise<void> {
+  if (ranges.length === 0) throw new Error("nothing left to keep — every range was cut");
+
+  const parts: string[] = [];
+  const concatIn: string[] = [];
+  ranges.forEach((r, i) => {
+    parts.push(
+      `[0:v]trim=start=${r.start.toFixed(3)}:end=${r.end.toFixed(3)},setpts=PTS-STARTPTS[v${i}];` +
+        `[0:a]atrim=start=${r.start.toFixed(3)}:end=${r.end.toFixed(3)},asetpts=PTS-STARTPTS[a${i}]`
+    );
+    concatIn.push(`[v${i}][a${i}]`);
+  });
+
+  await exec("ffmpeg", [
+    "-y",
+    "-i", videoPath,
+    "-filter_complex",
+    `${parts.join(";")};${concatIn.join("")}concat=n=${ranges.length}:v=1:a=1[outv][outa]`,
+    "-map", "[outv]",
+    "-map", "[outa]",
+    outPath,
+  ]);
+}
+
 export interface SilenceTrimResult {
   outPath: string;
   originalSeconds: number;
@@ -365,31 +398,7 @@ export async function trimSilence(
     throw new Error("The whole clip registered as silence — try a lower thresholdDb.");
   }
 
-  // Build a filter_complex that trims each kept range from video+audio and
-  // concatenates the pieces back into one continuous clip.
-  const parts: string[] = [];
-  const concatIn: string[] = [];
-  keep.forEach((k, i) => {
-    parts.push(
-      `[0:v]trim=start=${k.start.toFixed(3)}:end=${k.end.toFixed(3)},setpts=PTS-STARTPTS[v${i}];` +
-        `[0:a]atrim=start=${k.start.toFixed(3)}:end=${k.end.toFixed(3)},asetpts=PTS-STARTPTS[a${i}]`
-    );
-    concatIn.push(`[v${i}][a${i}]`);
-  });
-  const filter =
-    parts.join(";") +
-    ";" +
-    concatIn.join("") +
-    `concat=n=${keep.length}:v=1:a=1[outv][outa]`;
-
-  await exec("ffmpeg", [
-    "-y",
-    "-i", videoPath,
-    "-filter_complex", filter,
-    "-map", "[outv]",
-    "-map", "[outa]",
-    outPath,
-  ]);
+  await concatRanges(videoPath, outPath, keep);
 
   const trimmed = await probe(outPath);
   return {

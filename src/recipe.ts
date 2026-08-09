@@ -70,6 +70,25 @@ export const segmentSchema = z.object({
         "Use when cover-cropping cuts off the subject — a portrait clip in a " +
         "landscape frame crops to its middle unless you aim it."
     ),
+  backgroundTrack: z
+    .array(
+      z.object({
+        atSeconds: z
+          .number()
+          .min(0)
+          .describe("Seconds from THIS segment's start, not from the reel's"),
+        x: z.number().min(0).max(1).describe("Horizontal crop centre, 0..1"),
+        y: z.number().min(0).max(1).describe("Vertical crop centre, 0..1"),
+      })
+    )
+    .min(2)
+    .optional()
+    .describe(
+      "Keyframed crop centre that FOLLOWS a moving subject, interpolated between keyframes. " +
+        "Overrides `backgroundPosition`, which is one fixed point and loses anyone who walks " +
+        "out of a cover-cropped frame. Get it from track_subject, which measures the movement " +
+        "and returns null rather than a track when the subject barely moved."
+    ),
   videoTransitionIn: z
     .object({
       kind: z
@@ -257,6 +276,59 @@ export const segmentSchema = z.object({
     ),
 });
 
+export const overlaySchema = z.object({
+  kind: z
+    .enum(["image", "text", "progressBar"])
+    .describe(
+      "image = a logo bug; text = a handle or watermark; progressBar = a bar that fills " +
+        "across the reel, which measurably holds people past the halfway point."
+    ),
+  file: z
+    .string()
+    .optional()
+    .describe("Absolute path to the image. Required for kind 'image'."),
+  text: z.string().optional().describe("The text to draw. Required for kind 'text'."),
+  corner: z
+    .enum(["top-left", "top-right", "bottom-left", "bottom-right"])
+    .default("top-right")
+    .describe("Which corner an image or text overlay sits in."),
+  edge: z
+    .enum(["top", "bottom"])
+    .default("bottom")
+    .describe("Which edge a progressBar runs along."),
+  /** As a share of frame WIDTH so it scales with the output, like captionInset. */
+  size: z
+    .number()
+    .min(0.01)
+    .max(1)
+    .default(0.12)
+    .describe(
+      "Image width as a fraction of frame width, or text size as a fraction of frame width. " +
+        "For a progressBar this is its thickness as a fraction of frame HEIGHT."
+    ),
+  margin: z
+    .number()
+    .min(0)
+    .max(0.4)
+    .default(0.05)
+    .describe(
+      "Distance from the frame edges, as a fraction of frame width. The default clears the " +
+        "platform chrome; check with review_render's `platform`."
+    ),
+  color: z.string().default("#fff").describe("Text or progress-bar color"),
+  opacity: z.number().min(0).max(1).default(0.9),
+  fromSeconds: z
+    .number()
+    .min(0)
+    .optional()
+    .describe("Show from this time. Omit to show from the start."),
+  toSeconds: z
+    .number()
+    .positive()
+    .optional()
+    .describe("Hide after this time. Omit to run to the end."),
+});
+
 export const recipeSchema = z.object({
   output: z.object({
     width: z.number().int().positive().default(1080),
@@ -342,6 +414,14 @@ export const recipeSchema = z.object({
         "Use this for voiceovers rather than putting narration in music.file — that slot " +
         "silences the soundtrack."
     ),
+  overlays: z
+    .array(overlaySchema)
+    .optional()
+    .describe(
+      "Persistent layers drawn over the whole reel, above the footage and captions — a logo " +
+        "bug, a handle, a progress bar. These are the marks that make a reel yours across " +
+        "every post, and nothing in a per-segment field can express 'always there'."
+    ),
   googleFonts: z
     .array(z.string())
     .optional()
@@ -412,6 +492,24 @@ export function parseRecipe(json: string): Recipe {
       throw new Error(
         `segment ${i}: emphasisWords ${strayEmphasis.join(", ")} are out of range — ` +
           `the caption has ${wordCount} word(s), so indices run 0..${wordCount - 1}`
+      );
+    }
+  }
+
+  for (const [i, overlay] of (recipe.overlays ?? []).entries()) {
+    if (overlay.kind === "image" && !overlay.file) {
+      throw new Error(`overlay ${i}: kind "image" needs a \`file\` to draw`);
+    }
+    if (overlay.kind === "text" && !overlay.text?.trim()) {
+      throw new Error(`overlay ${i}: kind "text" needs \`text\` to draw`);
+    }
+    if (
+      overlay.fromSeconds != null &&
+      overlay.toSeconds != null &&
+      overlay.toSeconds <= overlay.fromSeconds
+    ) {
+      throw new Error(
+        `overlay ${i}: toSeconds (${overlay.toSeconds}) must be after fromSeconds (${overlay.fromSeconds})`
       );
     }
   }

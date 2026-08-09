@@ -105,6 +105,16 @@ export async function scaffoldReel(
     localized.voiceover = { ...recipe.voiceover, file: await stage(recipe.voiceover.file) };
   }
 
+  if (recipe.overlays) {
+    localized.overlays = await Promise.all(
+      recipe.overlays.map(async (overlay) => {
+        if (overlay.kind !== "image" || !overlay.file) return overlay;
+        await assertExists(overlay.file, "overlay image");
+        return { ...overlay, file: await stage(overlay.file) };
+      })
+    );
+  }
+
   // Custom scenes are code, not media: they land in src/scenes/ (not public/)
   // and get a generated registry so Reel.tsx can resolve them by name.
   const scenesDir = path.join(projectDir, "src", "scenes");

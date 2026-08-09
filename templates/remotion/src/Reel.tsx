@@ -15,7 +15,7 @@ import {
 } from "remotion";
 import { getAvailableFonts } from "@remotion/google-fonts";
 import { Fragment, useEffect, useState, type ReactNode } from "react";
-import type { Recipe, Segment, VideoTransition, Zoom } from "./recipeSchema";
+import type { Overlay, Recipe, Segment, VideoTransition, Zoom } from "./recipeSchema";
 import { duckWindow, musicGain } from "./audio";
 import { scenes } from "./scenes";
 
@@ -351,6 +351,32 @@ const backgroundStyle = (fit: string, position?: string): CSSProperties => ({
   ...(position ? { objectPosition: position } : {}),
 });
 
+// Where a keyframed crop sits at `atSeconds` (segment-relative), holding the
+// ends rather than extrapolating past them. Mirrors positionAt in the server's
+// subject-track.ts, which is where the curve is unit-tested.
+const trackPositionAt = (
+  track: { atSeconds: number; x: number; y: number }[],
+  atSeconds: number
+): string => {
+  const first = track[0];
+  const last = track[track.length - 1];
+  if (atSeconds <= first.atSeconds) return positionString(first.x, first.y);
+  if (atSeconds >= last.atSeconds) return positionString(last.x, last.y);
+
+  for (let i = 1; i < track.length; i++) {
+    const b = track[i];
+    if (atSeconds > b.atSeconds) continue;
+    const a = track[i - 1];
+    const span = b.atSeconds - a.atSeconds;
+    const t = span <= 0 ? 0 : (atSeconds - a.atSeconds) / span;
+    return positionString(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t);
+  }
+  return positionString(last.x, last.y);
+};
+
+const positionString = (x: number, y: number): string =>
+  `${(x * 100).toFixed(2)}% ${(y * 100).toFixed(2)}%`;
+
 const easings: Record<string, (t: number) => number> = {
   linear: (t) => t,
   easeIn: (t) => t * t,
@@ -412,6 +438,7 @@ const SegmentBackground = ({
   muted,
   startFrom,
   position,
+  track,
   zoom,
   speed,
   durationInFrames,
@@ -426,6 +453,7 @@ const SegmentBackground = ({
   muted: boolean;
   startFrom: number;
   position?: string;
+  track?: { atSeconds: number; x: number; y: number }[];
   zoom?: Zoom;
   speed?: number;
   durationInFrames: number;
@@ -433,7 +461,10 @@ const SegmentBackground = ({
   transitionFrames: number;
 }) => {
   const frame = useCurrentFrame();
-  const { width, height } = useVideoConfig();
+  const { width, height, fps } = useVideoConfig();
+  // A track follows a moving subject, so it wins over the single fixed point.
+  const framePosition =
+    track && track.length > 0 ? trackPositionAt(track, frame / fps) : position;
   const media = sceneEl ? (
     <AbsoluteFill>{sceneEl}</AbsoluteFill>
   ) : video ? (
@@ -442,10 +473,10 @@ const SegmentBackground = ({
       muted={muted}
       startFrom={startFrom}
       playbackRate={speed ?? 1}
-      style={backgroundStyle(fit, position)}
+      style={backgroundStyle(fit, framePosition)}
     />
   ) : image ? (
-    <Img src={staticFile(image)} style={backgroundStyle(fit, position)} />
+    <Img src={staticFile(image)} style={backgroundStyle(fit, framePosition)} />
   ) : (
     <AbsoluteFill style={{ background: fill ?? "black" }} />
   );
@@ -470,6 +501,83 @@ const SegmentBackground = ({
   const wrap = transitionWrap(transition, frame, transitionFrames, width, height);
   if (Object.keys(wrap).length === 0) return inner;
   return <AbsoluteFill style={wrap}>{inner}</AbsoluteFill>;
+};
+
+// A persistent brand mark: a logo bug, a handle, or a progress bar. Positioned
+// off the frame's own width so the same recipe brands a 1080x1920 reel and a
+// 1080x1080 crop identically.
+const BrandOverlay = ({
+  overlay,
+  durationInFrames,
+}: {
+  overlay: Overlay;
+  durationInFrames: number;
+}) => {
+  const frame = useCurrentFrame();
+  const { width } = useVideoConfig();
+  const inset = overlay.margin * width;
+
+  if (overlay.kind === "progressBar") {
+    const progress = Math.min(1, Math.max(0, frame / Math.max(1, durationInFrames)));
+    return (
+      <AbsoluteFill style={{ pointerEvents: "none" }}>
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            [overlay.edge]: 0,
+            height: `${overlay.size * 100}%`,
+            opacity: overlay.opacity,
+          }}
+        >
+          <div
+            style={{
+              width: `${progress * 100}%`,
+              height: "100%",
+              backgroundColor: overlay.color,
+            }}
+          />
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
+  const [vertical, horizontal] = overlay.corner.split("-") as [
+    "top" | "bottom",
+    "left" | "right",
+  ];
+
+  return (
+    <AbsoluteFill style={{ pointerEvents: "none" }}>
+      <div
+        style={{
+          position: "absolute",
+          [vertical]: inset,
+          [horizontal]: inset,
+          opacity: overlay.opacity,
+        }}
+      >
+        {overlay.kind === "image" && overlay.file ? (
+          <Img src={staticFile(overlay.file)} style={{ width: overlay.size * width }} />
+        ) : (
+          <span
+            style={{
+              color: overlay.color,
+              fontSize: overlay.size * width,
+              fontWeight: 700,
+              fontFamily: "system-ui, -apple-system, Helvetica, Arial, sans-serif",
+              whiteSpace: "nowrap",
+              // Readable over whatever the footage is doing underneath.
+              textShadow: "0 2px 12px rgba(0,0,0,0.55)",
+            }}
+          >
+            {overlay.text}
+          </span>
+        )}
+      </div>
+    </AbsoluteFill>
+  );
 };
 
 // Solid-color flash carrying a dip-to-black/white: fades the color in up to
@@ -513,6 +621,7 @@ export const Reel = (recipe: Recipe) => {
       s.backgroundFill != null ||
       s.scene != null ||
       s.backgroundPosition != null ||
+      s.backgroundTrack != null ||
       s.zoom != null ||
       s.speed != null ||
       s.videoTransitionIn != null
@@ -606,6 +715,7 @@ export const Reel = (recipe: Recipe) => {
                 muted={recipe.background.muted}
                 startFrom={Math.round((bgStart ?? segment.start) * fps)}
                 position={bgPosition}
+                track={segment.backgroundTrack}
                 zoom={zoom}
                 speed={speed}
                 durationInFrames={durationInFrames}
@@ -648,6 +758,22 @@ export const Reel = (recipe: Recipe) => {
               color={transition.kind === "dip-to-black" ? "black" : "white"}
               durationInFrames={dipFrames}
             />
+          </Sequence>
+        );
+      })}
+
+      {/* Brand layer: drawn last so a logo bug or handle sits above everything,
+          including the dip flashes — a watermark that a transition can cover
+          isn't a watermark. */}
+      {(recipe.overlays ?? []).map((overlay, i) => {
+        const from = Math.round((overlay.fromSeconds ?? 0) * fps);
+        const to = Math.round(
+          (overlay.toSeconds ?? recipe.output.durationSeconds) * fps
+        );
+        const frames = Math.max(1, to - from);
+        return (
+          <Sequence key={`overlay-${i}`} from={from} durationInFrames={frames}>
+            <BrandOverlay overlay={overlay} durationInFrames={frames} />
           </Sequence>
         );
       })}

@@ -14,6 +14,15 @@ import { generateVoiceover } from "./tools/generate-voiceover.js";
 import { draftRecipeTool } from "./tools/draft-recipe.js";
 import { scaffoldReel } from "./tools/scaffold-reel.js";
 import { suggestFramingTool } from "./tools/suggest-framing.js";
+import { indexFootage } from "./tools/index-footage.js";
+import { editByTranscript } from "./tools/edit-by-transcript.js";
+import { critiqueReel } from "./tools/critique-reel.js";
+import { pickCoverFrame } from "./tools/pick-cover-frame.js";
+import { analyzeCreator } from "./tools/analyze-creator.js";
+import { trackSubject } from "./tools/track-subject.js";
+import { applyBrandKitTool, listBrandKits, saveBrandKit } from "./tools/brand-kit.js";
+import { localizeReel } from "./tools/localize-reel.js";
+import { hookVariants } from "./tools/hook-variants.js";
 import { renderReel, renderStill } from "./tools/render-reel.js";
 import { reviewRender } from "./tools/review-render.js";
 import { openInStudio } from "./tools/open-in-studio.js";
@@ -170,6 +179,446 @@ server.registerTool(
         await trimSilenceTool(video, workDir, {
           thresholdDb: threshold_db,
           minSilenceSeconds: min_silence_seconds,
+        })
+      );
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "hook_variants",
+  {
+    title: "Test several openings against one body",
+    description:
+      "Write one recipe per alternative opening, changing NOTHING else. The first second and " +
+      "a half is what creators actually A/B, and rebuilding a whole reel per hook both wastes " +
+      "a render on byte-identical frames and lets the variants differ in more than the thing " +
+      "under test. Each variant reports which segments changed — pass those to render_reel's " +
+      "`segments` and a variant costs one segment instead of a reel. Karaoke word timings on " +
+      "a replaced hook are dropped, since they index the words that were there.",
+    inputSchema: {
+      recipe_json: z.string().optional().describe("The style recipe as JSON. Pass this or `project`."),
+      project: z.string().optional().describe("Path to a scaffolded reel project."),
+      hooks: z
+        .array(z.string())
+        .min(1)
+        .describe("Alternative opening captions, one per variant."),
+      segments: z
+        .array(z.number().int().min(0))
+        .optional()
+        .describe(
+          "Which segments the hook occupies. Default [0]. Pass several when the hook spans " +
+            "more than one shot."
+        ),
+      label_from_text: z
+        .boolean()
+        .optional()
+        .describe('Name variants after the hook text ("stop-scrolling") instead of "hook-1".'),
+    },
+  },
+  async ({ recipe_json, project, hooks, segments, label_from_text }) => {
+    try {
+      return ok(
+        await hookVariants({ recipeJson: recipe_json, project }, hooks, workDir, {
+          segments,
+          labelFromText: label_from_text,
+        })
+      );
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "localize_reel",
+  {
+    title: "Put the reel out in another language",
+    description:
+      "Swap the captions for a translation you supply and write a renderable recipe plus " +
+      ".srt/.vtt sidecars for that language. It owns the parts that go silently wrong if you " +
+      "just swap the strings: `wordTimings` are offsets into a specific sentence, so a " +
+      "translated line would highlight the WRONG words — they are dropped unless you supply " +
+      "new ones; `emphasisWords` indices that now point past the caption are cleared; and " +
+      "because languages are not the same length, the translated reel is re-scored for " +
+      "reading speed, since a line that read fine in English can flash past in German at the " +
+      "same segment timing.",
+    inputSchema: {
+      recipe_json: z.string().optional().describe("The style recipe as JSON. Pass this or `project`."),
+      project: z.string().optional().describe("Path to a scaffolded reel project."),
+      language: z.string().describe('BCP-47 tag naming the outputs, e.g. "de" or "pt-BR"'),
+      captions: z
+        .array(z.string())
+        .describe(
+          "One translated line per segment, in order. Use an empty string for a segment " +
+            "that should stay captionless."
+        ),
+      word_timings: z
+        .array(z.array(z.number().min(0)).optional())
+        .optional()
+        .describe(
+          "Optional per-segment word offsets for the translated text — supply these (by " +
+            "transcribing a translated voiceover) to keep karaoke alive."
+        ),
+    },
+  },
+  async ({ recipe_json, project, language, captions, word_timings }) => {
+    try {
+      return ok(
+        await localizeReel(
+          { recipeJson: recipe_json, project },
+          { language, captions, wordTimings: word_timings },
+          workDir
+        )
+      );
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "save_brand_kit",
+  {
+    title: "Save the marks that make a reel yours",
+    description:
+      "Store a reusable brand kit: logo bug, handle, progress bar, caption type and colors. " +
+      "A preset carries the LOOK of one reference (pacing, caption styles, transitions); a " +
+      "brand kit carries what shouldn't change when you copy a new reference at all. They " +
+      "compose — copy anyone's pacing, keep your face on it. Saving the same name again " +
+      "updates the kit, since a brand is one evolving thing rather than a library.",
+    inputSchema: {
+      kit_json: z
+        .string()
+        .describe(
+          'JSON: { name, description, overlays: [{ kind: "image"|"text"|"progressBar", ' +
+            "file?, text?, corner?, edge?, size?, margin?, color?, opacity? }], " +
+            "caption: { captionFont?, captionColor?, captionOutline?, ... }, googleFonts: [] }"
+        ),
+    },
+  },
+  async ({ kit_json }) => {
+    try {
+      return ok(await saveBrandKit(kit_json, workDir));
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "list_brand_kits",
+  {
+    title: "List saved brand kits",
+    description: "Show the brand kits saved in this project, with their descriptions.",
+    inputSchema: {},
+  },
+  async () => {
+    try {
+      return ok(await listBrandKits(workDir));
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "apply_brand_kit",
+  {
+    title: "Stamp a brand kit onto a recipe",
+    description:
+      "Merge a saved brand kit into a recipe: its overlays are added, its caption defaults " +
+      "fill any segment that hasn't chosen its own, and its fonts are loaded. Additive and " +
+      "idempotent — applying twice leaves one logo, not two — and a choice the recipe made " +
+      "on purpose survives unless you pass overwrite. Returns the merged recipe plus exactly " +
+      "what changed.",
+    inputSchema: {
+      recipe_json: z.string().describe("The style recipe as a JSON string"),
+      kit_name: z.string().describe("Name of a saved brand kit"),
+      overwrite: z
+        .boolean()
+        .optional()
+        .describe(
+          "Let the kit replace caption choices the recipe already made. Default false."
+        ),
+    },
+  },
+  async ({ recipe_json, kit_name, overwrite }) => {
+    try {
+      return ok(await applyBrandKitTool(recipe_json, kit_name, workDir, { overwrite }));
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "track_subject",
+  {
+    title: "Follow a moving subject across a shot",
+    description:
+      "Measure where the subject is over TIME, not once per span, and return keyframes for a " +
+      "segment's `backgroundTrack` so a cover-crop follows someone who moves. " +
+      "`suggest_framing` gives one fixed point, which is right for a locked-off shot and " +
+      "loses anyone who walks — cropping 16:9 to 9:16 throws away two thirds of the width. " +
+      "The measurements are smoothed and speed-limited, so a glitch can't become a whip pan, " +
+      "and a subject that barely moved comes back as a single `backgroundPosition` instead of " +
+      "a track that would only jitter.",
+    inputSchema: {
+      video: z.string().describe("Absolute path to the footage"),
+      spans: z
+        .array(
+          z.object({
+            start: z.number().min(0).describe("Span start in seconds"),
+            end: z.number().positive().describe("Span end in seconds"),
+          })
+        )
+        .optional()
+        .describe(
+          "Track these spans separately — pass your recipe's segment start/end times. " +
+            "Omit to track the whole clip as one."
+        ),
+      window_seconds: z
+        .number()
+        .min(0.2)
+        .optional()
+        .describe(
+          "How often to re-measure the subject. Default 0.5s. Smaller follows faster movement " +
+            "but measures from fewer frames."
+        ),
+    },
+  },
+  async ({ video, spans, window_seconds }) => {
+    try {
+      return ok(await trackSubject(video, spans, { windowSeconds: window_seconds }));
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "analyze_creator",
+  {
+    title: "Learn a style from several reels",
+    description:
+      "Learn a style from a BODY of work instead of from one reel. A single reference can't " +
+      "tell you which of its choices were the style and which were that video's subject — " +
+      "analyze several reels from the same creator and what recurs is the style, what varies " +
+      "is the range they work in. Returns DISTRIBUTIONS (shot length p25..p75, how often each " +
+      "transition shows up, caption band and case, tempo) plus a `consistency` score saying " +
+      "how much these reels agree at all — low means they're several styles and averaging " +
+      "them produces something the creator never made. Optionally saves a preset built from " +
+      "the middle of the measurements.",
+    inputSchema: {
+      videos: z
+        .array(z.string())
+        .min(1)
+        .max(12)
+        .describe("Absolute paths to several reels by the same creator. Three or more."),
+      preset_name: z
+        .string()
+        .optional()
+        .describe("Save the learned style as a reusable preset under this name."),
+      preset_description: z
+        .string()
+        .optional()
+        .describe("Description for the saved preset. Defaults to a summary of what was measured."),
+    },
+  },
+  async ({ videos, preset_name, preset_description }) => {
+    try {
+      return ok(
+        await analyzeCreator(videos, workDir, {
+          presetName: preset_name,
+          presetDescription: preset_description,
+        })
+      );
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "pick_cover_frame",
+  {
+    title: "Pick the frame to lead with",
+    description:
+      "Choose the reel's cover/thumbnail by measuring every candidate frame on exposure, " +
+      "contrast and edge detail — what survives being shrunk to a thumbnail. Platforms " +
+      "otherwise default to frame 0, which on a reel that opens with a dip-to-black is a " +
+      "black square. Writes the winner full-resolution and returns every candidate ranked, " +
+      "so you can pick a different one by eye. It scores how a frame LOOKS, not what it " +
+      "shows — check the image before shipping it.",
+    inputSchema: {
+      video: z.string().describe("Absolute path to the rendered reel"),
+      candidates: z
+        .number()
+        .int()
+        .min(2)
+        .max(120)
+        .optional()
+        .describe("How many frames to consider across the reel. Default 24."),
+    },
+  },
+  async ({ video, candidates }) => {
+    try {
+      return ok(await pickCoverFrame(video, workDir, { candidates }));
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "critique_reel",
+  {
+    title: "Critique a reel with no reference",
+    description:
+      "Score a reel against ITSELF — the feedback a from-scratch reel never gets, because " +
+      "review_render can only tell you how closely you matched a reference. Measures what " +
+      "makes a reel unreadable or unwatchable regardless of style: captions going past faster " +
+      "than anyone reads them, an opening that says nothing in the first 1.5s, text with no " +
+      "outline or pill to separate it from the footage, every segment the same length, dead " +
+      "air, shots held too long, a landscape output. Returns a 0-100 score and issues that " +
+      "each name the recipe field to change, plus the measurements behind them so you can " +
+      "overrule a heuristic you can see is wrong for this reel.",
+    inputSchema: {
+      recipe_json: z
+        .string()
+        .optional()
+        .describe("The style recipe as a JSON string. Pass this or `project`."),
+      project: z
+        .string()
+        .optional()
+        .describe("Path to a scaffolded reel project; reads its recipe.json."),
+    },
+  },
+  async ({ recipe_json, project }) => {
+    try {
+      return ok(await critiqueReel({ recipeJson: recipe_json, project }));
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "edit_by_transcript",
+  {
+    title: "Edit footage by what was said",
+    description:
+      "Cut talking-head footage by its TRANSCRIPT rather than by where it went quiet. " +
+      "Removes the 'um's and 'uh's (they are not words), optionally the crutch words " +
+      "('like', 'basically', 'you know' — off by default, since cutting them changes the " +
+      "sentence), and any phrase you quote, so a flubbed line goes away without you finding " +
+      "its timecode. Returns every cut with what was said there, and captions taken from the " +
+      "real take — already re-timed onto the edited clip, with word timings for karaoke. " +
+      "Run with dry_run first: a cut list is cheaper to read than a re-render is to redo. " +
+      "Needs a local whisper CLI.",
+    inputSchema: {
+      video: z.string().describe("Absolute path to the talking-head footage"),
+      remove_disfluencies: z
+        .boolean()
+        .optional()
+        .describe("Cut 'um'/'uh'/'erm'. Default true."),
+      remove_crutch_words: z
+        .boolean()
+        .optional()
+        .describe(
+          "Also cut 'like', 'basically', 'actually', 'you know'. Default false — these are " +
+            "real words and cutting them changes meaning. Read the cut list afterwards."
+        ),
+      remove_phrases: z
+        .array(z.string())
+        .optional()
+        .describe(
+          "Exact phrases to cut wherever they were said, e.g. a flubbed sentence or a " +
+            "false start. Matched case- and punctuation-insensitively."
+        ),
+      model: z
+        .string()
+        .optional()
+        .describe("Whisper model: tiny/base/small/medium. Default base."),
+      dry_run: z
+        .boolean()
+        .optional()
+        .describe("Plan the cuts and captions without encoding anything. Default false."),
+    },
+  },
+  async ({ video, remove_disfluencies, remove_crutch_words, remove_phrases, model, dry_run }) => {
+    try {
+      return ok(
+        await editByTranscript(video, workDir, {
+          removeDisfluencies: remove_disfluencies,
+          removeCrutchWords: remove_crutch_words,
+          removePhrases: remove_phrases,
+          model,
+          dryRun: dry_run,
+        })
+      );
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "index_footage",
+  {
+    title: "Index a folder of footage into a ranked shot library",
+    description:
+      "Split every clip in a footage dump into shots and MEASURE each one, so you pick from a " +
+      "ranked library instead of being handed the right clip in advance. Per shot: exposure, " +
+      "flatness, edge detail and camera shake graded into a 0-1 score with named flaws; whether " +
+      "it is locked off, moving or shaky; where its subject sits (ready as `backgroundPosition`); " +
+      "and a filmstrip contact sheet to look at. Pass `needs` — your segment durations — and it " +
+      "also assigns one shot per segment, longest need first, never reusing a shot.",
+    inputSchema: {
+      footage: z
+        .array(z.string())
+        .min(1)
+        .describe(
+          "Absolute paths to clips and/or folders of clips. Folders are expanded one level deep."
+        ),
+      needs: z
+        .array(
+          z.object({
+            duration_seconds: z
+              .number()
+              .positive()
+              .describe("How long this segment needs its background to run"),
+            prefer: z
+              .enum(["locked", "moving", "shaky"])
+              .optional()
+              .describe(
+                "Bias this segment's pick toward that kind of shot — a locked shot under a " +
+                  "long caption, a moving one for a hook. Ignored when nothing qualifies."
+              ),
+          })
+        )
+        .optional()
+        .describe(
+          "Your recipe's segment durations. Pass them to get a shot assigned to each segment."
+        ),
+      filmstrips: z
+        .boolean()
+        .optional()
+        .describe("Write a contact sheet per shot. Default true; false is faster."),
+    },
+  },
+  async ({ footage, needs, filmstrips }) => {
+    try {
+      return ok(
+        await indexFootage(footage, workDir, {
+          needs: needs?.map((n) => ({
+            durationSeconds: n.duration_seconds,
+            prefer: n.prefer,
+          })),
+          filmstrips,
         })
       );
     } catch (err) {

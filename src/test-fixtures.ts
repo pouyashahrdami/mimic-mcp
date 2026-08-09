@@ -97,6 +97,31 @@ export async function makeFadeVideo(
 }
 
 /**
+ * Flat-color video over a continuous tone that goes silent for each of `gaps` —
+ * the shape silencedetect is built to find, with known ground truth.
+ */
+export async function makeVideoWithSilentGaps(
+  outPath: string,
+  gaps: { start: number; end: number }[],
+  durationSeconds: number,
+  { size = "160x288", fps = 30 } = {}
+): Promise<void> {
+  const mute = gaps
+    .map((g) => `volume=enable='between(t,${g.start},${g.end})':volume=0`)
+    .join(",");
+  await run("ffmpeg", [
+    "-y",
+    "-f", "lavfi",
+    "-i", `color=c=blue:s=${size}:d=${durationSeconds}:r=${fps}`,
+    "-f", "lavfi",
+    "-i", `sine=frequency=440:duration=${durationSeconds}`,
+    ...(mute ? ["-af", mute] : []),
+    "-t", String(durationSeconds),
+    outPath,
+  ]);
+}
+
+/**
  * Audio file with sharp sine "clicks" at the given times over near-silence —
  * a beat grid with known ground truth.
  */
