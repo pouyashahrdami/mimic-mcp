@@ -14,6 +14,7 @@ import { generateVoiceover } from "./tools/generate-voiceover.js";
 import { draftRecipeTool } from "./tools/draft-recipe.js";
 import { scaffoldReel } from "./tools/scaffold-reel.js";
 import { suggestFramingTool } from "./tools/suggest-framing.js";
+import { indexFootage } from "./tools/index-footage.js";
 import { renderReel, renderStill } from "./tools/render-reel.js";
 import { reviewRender } from "./tools/review-render.js";
 import { openInStudio } from "./tools/open-in-studio.js";
@@ -170,6 +171,67 @@ server.registerTool(
         await trimSilenceTool(video, workDir, {
           thresholdDb: threshold_db,
           minSilenceSeconds: min_silence_seconds,
+        })
+      );
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "index_footage",
+  {
+    title: "Index a folder of footage into a ranked shot library",
+    description:
+      "Split every clip in a footage dump into shots and MEASURE each one, so you pick from a " +
+      "ranked library instead of being handed the right clip in advance. Per shot: exposure, " +
+      "flatness, edge detail and camera shake graded into a 0-1 score with named flaws; whether " +
+      "it is locked off, moving or shaky; where its subject sits (ready as `backgroundPosition`); " +
+      "and a filmstrip contact sheet to look at. Pass `needs` — your segment durations — and it " +
+      "also assigns one shot per segment, longest need first, never reusing a shot.",
+    inputSchema: {
+      footage: z
+        .array(z.string())
+        .min(1)
+        .describe(
+          "Absolute paths to clips and/or folders of clips. Folders are expanded one level deep."
+        ),
+      needs: z
+        .array(
+          z.object({
+            duration_seconds: z
+              .number()
+              .positive()
+              .describe("How long this segment needs its background to run"),
+            prefer: z
+              .enum(["locked", "moving", "shaky"])
+              .optional()
+              .describe(
+                "Bias this segment's pick toward that kind of shot — a locked shot under a " +
+                  "long caption, a moving one for a hook. Ignored when nothing qualifies."
+              ),
+          })
+        )
+        .optional()
+        .describe(
+          "Your recipe's segment durations. Pass them to get a shot assigned to each segment."
+        ),
+      filmstrips: z
+        .boolean()
+        .optional()
+        .describe("Write a contact sheet per shot. Default true; false is faster."),
+    },
+  },
+  async ({ footage, needs, filmstrips }) => {
+    try {
+      return ok(
+        await indexFootage(footage, workDir, {
+          needs: needs?.map((n) => ({
+            durationSeconds: n.duration_seconds,
+            prefer: n.prefer,
+          })),
+          filmstrips,
         })
       );
     } catch (err) {

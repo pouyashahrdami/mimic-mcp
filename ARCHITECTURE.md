@@ -49,6 +49,7 @@ a reference as ground truth (review still works, minus the measured diff).
 | MCP entry | `src/index.ts` | Registers every tool + the slash prompt over stdio. |
 | Tools | `src/tools/*.ts` | One file per MCP tool — the I/O boundary that wires pure logic to ffmpeg/whisper/Remotion. |
 | Analysis (pure) | `src/analysis.ts` (scene cuts, transition fingerprints, motion/easing, beats), `src/captions.ts` (OCR caption track), `src/framing.ts` (subject location) | ffmpeg-free math over extracted frames/samples. Unit-tested without media. The colocated `scene-cuts.test.ts` / `transitions.test.ts` / `motion.test.ts` / `beats.test.ts` all exercise `analysis.ts` — the tests are split by concern, the module is not. |
+| Footage triage (pure) | `src/footage-index.ts` | Grades a shot from its measured signals (exposure, flatness, detail, shake) and assigns shots to the segment durations a recipe needs. The user's-footage counterpart to the reference analysis above. |
 | Contracts | `src/style-spec.ts`, `recipe.ts` | The measured StyleSpec and the authored recipe schemas. |
 | Projection | `src/draft-recipe.ts` | Turns a StyleSpec + script into a first-pass recipe — the arithmetic half of recipe authoring, so the agent only makes the judgment calls. Pure; unit-tested. |
 | Review | `src/spec-diff.ts`, `src/safe-area.ts` | Diffs two StyleSpecs into a 0–100 score with recipe-field-level issues, and flags captions the target platform's own UI would cover. |
