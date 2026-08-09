@@ -46,6 +46,7 @@ The server gives the agent the tools to pull that off:
 | Tool | What it does |
 |------|--------------|
 | `trim_silence` | Cuts the silent gaps out of talking-head footage, concatenating the spoken parts into a tighter jump-cut clip — the tedious pass, automated. |
+| `suggest_framing` | **Measures where the subject is**, per span, so cover-cropping a wide clip into a vertical frame keeps it — and a punch-in zooms toward it. `backgroundPosition` and `zoom.focusX/focusY` otherwise default to the middle, which discards the subject on any off-centre shot. Uses motion where the shot has any, edge detail when it's locked off, and returns **null rather than a guess** when no subject is clear. |
 | `generate_voiceover` | Turns a script into a spoken voiceover track using the built-in macOS voice (no API key). Goes in the recipe's `voiceover` field, where it plays over the music and the music **ducks underneath it** automatically. Transcribe it for word-synced karaoke captions. macOS only. |
 
 **Build & render**

@@ -62,6 +62,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   count and duration, landing on measured word boundaries when the recipe has
   `wordTimings`, and never holding a cue across a pause.
 
+- **Measured framing** — `suggest_framing` finds where the subject sits in footage, per
+  span, so `backgroundPosition` aims a cover-crop at it and `zoom.focusX/focusY` punch in
+  toward it instead of the frame's middle. Motion is the cue where the shot has any;
+  a locked-off shot falls back to edge detail, which a textured background can dominate,
+  so those spans are flagged. Below a confidence floor it returns no position rather
+  than a guess.
+
 ### Fixed
 
 - `render_reel` applied a **relative** project directory twice (it also passes the

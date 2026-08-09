@@ -12,6 +12,7 @@ import { transcribeReference } from "./tools/transcribe-reference.js";
 import { generateVoiceover } from "./tools/generate-voiceover.js";
 import { draftRecipeTool } from "./tools/draft-recipe.js";
 import { scaffoldReel } from "./tools/scaffold-reel.js";
+import { suggestFramingTool } from "./tools/suggest-framing.js";
 import { renderReel, renderStill } from "./tools/render-reel.js";
 import { reviewRender } from "./tools/review-render.js";
 import { openInStudio } from "./tools/open-in-studio.js";
@@ -165,6 +166,42 @@ server.registerTool(
           minSilenceSeconds: min_silence_seconds,
         })
       );
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "suggest_framing",
+  {
+    title: "Measure where the subject is",
+    description:
+      "Measure where the subject sits in footage, per span, so cover-cropping a wide clip " +
+      "into a vertical frame keeps it — and a punch-in zooms toward it. Both " +
+      "`backgroundPosition` and `zoom.focusX/focusY` otherwise default to the middle, " +
+      "which throws the subject away on any shot that isn't centred. Uses motion when the " +
+      "shot has any, edge detail when it's locked off, and returns a null position rather " +
+      "than a guess when there's no clear subject.",
+    inputSchema: {
+      video: z.string().describe("Absolute path to the footage"),
+      spans: z
+        .array(
+          z.object({
+            start: z.number().min(0).describe("Span start in seconds"),
+            end: z.number().positive().describe("Span end in seconds"),
+          })
+        )
+        .optional()
+        .describe(
+          "Measure these spans separately — pass your recipe's segment start/end times " +
+            "to get a per-segment answer. Omit to measure the whole clip as one."
+        ),
+    },
+  },
+  async ({ video, spans }) => {
+    try {
+      return ok(await suggestFramingTool(video, spans));
     } catch (err) {
       return fail(err);
     }
