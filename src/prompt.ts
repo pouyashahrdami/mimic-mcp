@@ -62,8 +62,11 @@ Work through these steps in order:
 
 7. Call render_reel on that directory. First render is slow (installs Remotion).
 
-8. Review your own work: call review_render with the project directory AND the
-   reference video. Open each rendered/reference frame pair and compare like an
+8. Review your own work: call review_render with the project directory, the
+   reference video, and the \`platform\` the user is posting to (tiktok / instagram /
+   youtube-shorts) so captions hidden behind that app's own caption bar and action
+   rail get caught — a reel can score 100 on fidelity and still ship unreadable.
+   Open each rendered/reference frame pair and compare like an
    editor — caption size and position, card placement, pacing, overall look.
    If something is off, edit recipe.json inside the project and re-render.
    One or two fix rounds is normal; don't loop forever.

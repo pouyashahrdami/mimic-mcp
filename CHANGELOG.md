@@ -42,6 +42,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   re-encoded, so it costs one audio pass. Silent reels are detected and left alone
   instead of having their noise floor amplified. Opt out with `normalize_audio: false`.
 
+- **Safe-area checking** — `review_render` takes a `platform` (`tiktok`, `instagram`,
+  `youtube-shorts`) and reports captions the app's own chrome would sit on top of: the
+  bottom caption bar, the right action rail, the top tab bar. Measured from the
+  render's OCR caption track against conservative per-platform rectangles, each issue
+  naming the recipe field to change. Nothing else in the pipeline knew those regions
+  existed — a reel could score 100/100 on fidelity and still ship with its text behind
+  the caption bar.
+
 ### Fixed
 
 - `render_reel` applied a **relative** project directory twice (it also passes the

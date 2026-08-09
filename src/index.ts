@@ -312,11 +312,20 @@ server.registerTool(
         .string()
         .optional()
         .describe("Path to the original reference video, for side-by-side comparison"),
+      platform: z
+        .enum(["tiktok", "instagram", "youtube-shorts"])
+        .optional()
+        .describe(
+          "Check captions against this platform's on-screen UI (caption bar, action rail, " +
+            "tab bar) and report any the chrome would cover. A reel can score 100 on " +
+            "fidelity and still ship with its text behind the caption bar. Needs the OCR " +
+            "caption track (macOS)."
+        ),
     },
   },
-  async ({ project_dir, reference_video }) => {
+  async ({ project_dir, reference_video, platform }) => {
     try {
-      return ok(await reviewRender(project_dir, reference_video));
+      return ok(await reviewRender(project_dir, reference_video, platform));
     } catch (err) {
       return fail(err);
     }
