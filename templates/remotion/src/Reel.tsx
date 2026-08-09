@@ -10,7 +10,7 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import type { Recipe, Segment, VideoTransition, Zoom } from "./recipeSchema";
 import { scenes } from "./scenes";
 
@@ -78,6 +78,8 @@ const CaptionText = ({
   const { fps } = useVideoConfig();
   const animation = segment.captionAnimation ?? "none";
   const wordTimings = segment.wordTimings;
+  const emphasis = new Set(segment.emphasisWords ?? []);
+  const emphasisColor = segment.emphasisColor ?? DEFAULT_HIGHLIGHT;
 
   if (animation === "karaoke") {
     const highlight =
@@ -89,20 +91,46 @@ const CaptionText = ({
           const active = frame >= startFrame;
           const justLanded = frame >= startFrame && frame < startFrame + 6;
           return (
-            <span
-              key={i}
-              style={{
-                color: active ? highlight : "rgba(255,255,255,0.55)",
-                transform: justLanded ? "scale(1.08)" : "scale(1)",
-                display: "inline-block",
-                transition: "none",
-                marginRight: "0.28em",
-              }}
-            >
-              {word}
-            </span>
+            // The space between spans is load-bearing: adjacent inline-blocks
+            // with no whitespace give the line no break opportunity, so a long
+            // caption would run off the frame instead of wrapping.
+            <Fragment key={i}>
+              <span
+                style={{
+                  color: active
+                    ? emphasis.has(i)
+                      ? emphasisColor
+                      : highlight
+                    : "rgba(255,255,255,0.55)",
+                  transform: justLanded ? "scale(1.08)" : "scale(1)",
+                  display: "inline-block",
+                  transition: "none",
+                }}
+              >
+                {word}
+              </span>{" "}
+            </Fragment>
           );
         })}
+      </>
+    );
+  }
+
+  // Static caption with one or more words popped in the accent color — the
+  // "…changed EVERYTHING" move. Only pays the per-word span cost when asked for.
+  if (animation === "none" && emphasis.size > 0) {
+    return (
+      <>
+        {segment.caption
+          .trim()
+          .split(/\s+/)
+          .map((word, i) => (
+            <Fragment key={i}>
+              <span style={emphasis.has(i) ? { color: emphasisColor } : undefined}>
+                {word}
+              </span>{" "}
+            </Fragment>
+          ))}
       </>
     );
   }
@@ -151,6 +179,8 @@ const Caption = ({
   const size = segment.captionSize;
   const font = segment.captionFont;
   const weight = segment.captionWeight;
+  const outline = segment.captionOutline;
+  const background = segment.captionBackground;
 
   const captionEl = (
     <div
@@ -164,6 +194,17 @@ const Caption = ({
         ...(size ? { fontSize: size } : {}),
         ...(font ? { fontFamily: font } : {}),
         ...(weight ? { fontWeight: weight } : {}),
+        // paintOrder keeps the stroke behind the glyph, so a thick outline
+        // thickens the letter instead of eating into it.
+        ...(outline
+          ? {
+              WebkitTextStroke: `${outline.widthPx}px ${outline.color}`,
+              paintOrder: "stroke fill",
+            }
+          : {}),
+        ...(background
+          ? { background, borderRadius: 24, padding: "24px 36px" }
+          : {}),
       }}
     >
       <CaptionText segment={segment} durationInFrames={durationInFrames} />

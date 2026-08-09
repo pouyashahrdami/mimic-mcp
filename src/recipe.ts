@@ -172,6 +172,37 @@ export const segmentSchema = z.object({
       "CSS font-weight overriding the caption style's default (the built-in looks are bold; " +
         "set 400 for the delicate editorial-serif reference style)."
     ),
+  captionOutline: z
+    .object({
+      color: z.string().default("#000").describe("CSS color of the outline"),
+      widthPx: z.number().min(0).max(24).default(6).describe("Stroke width in px"),
+    })
+    .optional()
+    .describe(
+      "Contrasting outline drawn around the caption's letters — the hard black stroke " +
+        "that keeps TikTok/Reels captions readable over ANY footage. Reach for this " +
+        "instead of a drop shadow when the reference's text stays crisp over busy shots."
+    ),
+  captionBackground: z
+    .string()
+    .optional()
+    .describe(
+      "CSS background painted as a rounded pill behind the caption (color or gradient, " +
+        "e.g. \"rgba(0,0,0,0.7)\" or \"#ffe000\"). The subtitle-box look. " +
+        "captionStyle \"tip\" already has one; this overrides it."
+    ),
+  emphasisWords: z
+    .array(z.number().int().min(0))
+    .optional()
+    .describe(
+      "Indices of words in `caption` (0-based, whitespace-split) to paint in " +
+        "`emphasisColor` — the one-word-popped look reels use to land the point. " +
+        "Works with captionAnimation none and karaoke."
+    ),
+  emphasisColor: z
+    .string()
+    .optional()
+    .describe("CSS color for `emphasisWords` (default: the karaoke accent)."),
   transitionIn: z
     .enum(["cut", "fade", "slide"])
     .default("cut")
@@ -296,13 +327,18 @@ export function parseRecipe(json: string): Recipe {
           "segment to transition from — only dips work on the first segment"
       );
     }
-    if (seg.wordTimings) {
-      const wordCount = seg.caption.trim().split(/\s+/).filter(Boolean).length;
-      if (seg.wordTimings.length !== wordCount) {
-        throw new Error(
-          `segment ${i}: wordTimings has ${seg.wordTimings.length} entries but the caption has ${wordCount} words`
-        );
-      }
+    const wordCount = seg.caption.trim().split(/\s+/).filter(Boolean).length;
+    if (seg.wordTimings && seg.wordTimings.length !== wordCount) {
+      throw new Error(
+        `segment ${i}: wordTimings has ${seg.wordTimings.length} entries but the caption has ${wordCount} words`
+      );
+    }
+    const strayEmphasis = seg.emphasisWords?.filter((w) => w >= wordCount);
+    if (strayEmphasis && strayEmphasis.length > 0) {
+      throw new Error(
+        `segment ${i}: emphasisWords ${strayEmphasis.join(", ")} are out of range — ` +
+          `the caption has ${wordCount} word(s), so indices run 0..${wordCount - 1}`
+      );
     }
   }
 

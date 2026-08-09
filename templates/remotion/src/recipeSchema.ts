@@ -21,6 +21,11 @@ export const zoomSchema = z.object({
   easing: z.enum(["linear", "easeIn", "easeOut", "easeInOut"]).default("linear"),
 });
 
+export const captionOutlineSchema = z.object({
+  color: z.string().default("#000"),
+  widthPx: z.number().min(0).max(24).default(6),
+});
+
 export const segmentSchema = z.object({
   start: z.number().min(0),
   end: z.number().positive(),
@@ -41,6 +46,10 @@ export const segmentSchema = z.object({
   captionFont: z.string().optional(),
   captionSize: z.number().positive().optional(),
   captionWeight: z.number().min(100).max(900).optional(),
+  captionOutline: captionOutlineSchema.optional(),
+  captionBackground: z.string().optional(),
+  emphasisWords: z.array(z.number().int().min(0)).optional(),
+  emphasisColor: z.string().optional(),
   transitionIn: z.enum(["cut", "fade", "slide"]).default("cut"),
   sound: z.string().optional(),
   soundVolume: z.number().min(0).max(1).optional(),
@@ -86,4 +95,5 @@ export type SceneProps = {
   durationInFrames: number;
 };
 export type Zoom = z.infer<typeof zoomSchema>;
+export type CaptionOutline = z.infer<typeof captionOutlineSchema>;
 export type VideoTransition = z.infer<typeof videoTransitionSchema>;

@@ -15,6 +15,22 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   boundaries snapped onto the beat grid (the first consumer of the measured beats).
   Returns `notes` naming the judgment calls it deliberately left to the agent.
 
+- **Caption chrome** — `captionOutline` (a contrasting stroke around the letters, the
+  thing that keeps captions readable over busy footage), `captionBackground` (a rounded
+  pill behind the text), and `emphasisWords` / `emphasisColor` (pop individual words in
+  an accent color, with `captionAnimation` `none` or `karaoke`).
+- A test asserting the server's recipe schema and the Remotion template's mirrored copy
+  stay field-for-field identical — they had drifted apart with nothing to catch it.
+
+### Fixed
+
+- `render_reel` applied a **relative** project directory twice (it also passes the
+  project as the renderer's cwd), writing the mp4 to `project/project/out/` and
+  returning a path that `review_render` could not find. Paths are resolved once now.
+- Karaoke captions never wrapped: the per-word spans were emitted with no whitespace
+  between them, leaving the line no break opportunity, so a long caption ran off the
+  frame instead of onto a second line.
+
 ### Changed
 
 - The `mimic-mcp` workflow prompt now routes through `draft_recipe` and tells the

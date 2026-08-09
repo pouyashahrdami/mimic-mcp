@@ -16,38 +16,52 @@ export type RenderQuality = "draft" | "final";
  * review/re-render loop iterates in seconds; the layout, timing and captions
  * are identical, only the pixels are coarser. Use "final" for the deliverable.
  */
+/**
+ * Where a render lands, as an absolute path. The renderer runs with the project
+ * as its cwd, so a relative projectDir would otherwise be applied twice and the
+ * mp4 would appear at project/project/out — somewhere review_render can't find it.
+ */
+export function renderOutputPath(projectDir: string, quality: RenderQuality): string {
+  return path.join(
+    path.resolve(projectDir),
+    "out",
+    quality === "draft" ? "reel-draft.mp4" : "reel.mp4"
+  );
+}
+
 export async function renderReel(
   projectDir: string,
   quality: RenderQuality = "final"
 ): Promise<string> {
-  await access(path.join(projectDir, "recipe.json")).catch(() => {
+  const projectPath = path.resolve(projectDir);
+
+  await access(path.join(projectPath, "recipe.json")).catch(() => {
     throw new Error(
       `${projectDir} doesn't look like a scaffolded reel project (no recipe.json). Run scaffold_reel first.`
     );
   });
 
-  const hasDeps = await access(path.join(projectDir, "node_modules"))
+  const hasDeps = await access(path.join(projectPath, "node_modules"))
     .then(() => true)
     .catch(() => false);
 
   if (!hasDeps) {
     await run("npm", ["install", "--no-fund", "--no-audit"], {
-      cwd: projectDir,
+      cwd: projectPath,
       maxBuffer: MAX_BUFFER,
     });
   }
 
-  const isDraft = quality === "draft";
-  const outPath = path.join(projectDir, "out", isDraft ? "reel-draft.mp4" : "reel.mp4");
+  const outPath = renderOutputPath(projectPath, quality);
 
   const args = ["remotion", "render", "Reel", outPath];
-  if (isDraft) {
+  if (quality === "draft") {
     // Half the linear resolution (~quarter the pixels) and a cheap, fast encode.
     // crf 28 is well past visually-lossless but plenty to judge layout/timing.
     args.push("--scale=0.5", "--crf=28");
   }
 
-  await run("npx", args, { cwd: projectDir, maxBuffer: MAX_BUFFER });
+  await run("npx", args, { cwd: projectPath, maxBuffer: MAX_BUFFER });
 
   return outPath;
 }

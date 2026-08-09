@@ -235,6 +235,10 @@ The recipe is the contract between "agent understands the reference" and "code r
       "transitionIn": "cut",           // cut | fade | slide
       "captionAnimation": "karaoke",   // none | karaoke | typewriter
       "highlightColor": "#ffe000",     // active-word color for karaoke
+      "captionOutline": { "color": "#000", "widthPx": 8 }, // hard stroke, readable over anything
+      "captionBackground": "rgba(0,0,0,0.7)",  // rounded pill behind the text
+      "emphasisWords": [4],            // pop these words (0-based) in emphasisColor
+      "emphasisColor": "#ffe000",
       "wordTimings": [0, 0.4, 0.7],    // optional per-word times (from transcribe_reference)
       "sound": "whoosh",               // pop | click | whoosh | riser, or a path
       "zoom": { "from": 1, "to": 1.3, "focusX": 0.5, "focusY": 0.4 }, // Ken-Burns punch-in
