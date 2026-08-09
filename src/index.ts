@@ -17,6 +17,7 @@ import { suggestFramingTool } from "./tools/suggest-framing.js";
 import { indexFootage } from "./tools/index-footage.js";
 import { editByTranscript } from "./tools/edit-by-transcript.js";
 import { critiqueReel } from "./tools/critique-reel.js";
+import { pickCoverFrame } from "./tools/pick-cover-frame.js";
 import { renderReel, renderStill } from "./tools/render-reel.js";
 import { reviewRender } from "./tools/review-render.js";
 import { openInStudio } from "./tools/open-in-studio.js";
@@ -175,6 +176,37 @@ server.registerTool(
           minSilenceSeconds: min_silence_seconds,
         })
       );
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "pick_cover_frame",
+  {
+    title: "Pick the frame to lead with",
+    description:
+      "Choose the reel's cover/thumbnail by measuring every candidate frame on exposure, " +
+      "contrast and edge detail — what survives being shrunk to a thumbnail. Platforms " +
+      "otherwise default to frame 0, which on a reel that opens with a dip-to-black is a " +
+      "black square. Writes the winner full-resolution and returns every candidate ranked, " +
+      "so you can pick a different one by eye. It scores how a frame LOOKS, not what it " +
+      "shows — check the image before shipping it.",
+    inputSchema: {
+      video: z.string().describe("Absolute path to the rendered reel"),
+      candidates: z
+        .number()
+        .int()
+        .min(2)
+        .max(120)
+        .optional()
+        .describe("How many frames to consider across the reel. Default 24."),
+    },
+  },
+  async ({ video, candidates }) => {
+    try {
+      return ok(await pickCoverFrame(video, workDir, { candidates }));
     } catch (err) {
       return fail(err);
     }

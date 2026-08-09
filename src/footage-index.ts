@@ -11,15 +11,10 @@
  */
 
 import { estimateFrameMotion } from "./analysis.js";
-import { detailProfile } from "./framing.js";
+import { frameStats, type FrameStats } from "./frame-quality.js";
 
-export interface ShotSignals {
-  /** Mean luma, 0..255. */
-  brightness: number;
-  /** Luma standard deviation — washed-out or fogged shots sit low. */
-  contrast: number;
-  /** Mean gradient magnitude per pixel: how much edge detail the shot carries. */
-  detail: number;
+/** A shot's middle frame, plus what only a sequence of frames can tell you. */
+export interface ShotSignals extends FrameStats {
   /** Mean absolute inter-frame change per pixel — is anything moving? */
   motion: number;
   /** 0..1 roughness of that motion frame to frame. A pan is smooth; a hand isn't. */
@@ -68,21 +63,6 @@ export const USABLE_SCORE = 0.5;
 function mean(values: number[]): number {
   if (values.length === 0) return 0;
   return values.reduce((sum, v) => sum + v, 0) / values.length;
-}
-
-/** Mean luma and its standard deviation over one raster. */
-function exposure(frame: Uint8Array): { brightness: number; contrast: number } {
-  if (frame.length === 0) return { brightness: 0, contrast: 0 };
-  let total = 0;
-  for (let i = 0; i < frame.length; i++) total += frame[i];
-  const brightness = total / frame.length;
-
-  let variance = 0;
-  for (let i = 0; i < frame.length; i++) {
-    const d = frame[i] - brightness;
-    variance += d * d;
-  }
-  return { brightness, contrast: Math.sqrt(variance / frame.length) };
 }
 
 /** Mean absolute change per pixel for each consecutive frame pair. */
@@ -134,16 +114,12 @@ export function measureShotSignals(
     throw new Error("no frames decoded — the shot range is empty or unreadable");
   }
 
-  const pixels = width * height;
   const middle = frames[Math.floor(frames.length / 2)];
-  const { brightness, contrast } = exposure(middle);
-  const gradients = detailProfile(middle, width, height).columns;
-  const series = motionSeries(frames, pixels);
+  const stats = frameStats(middle, width, height);
+  const series = motionSeries(frames, width * height);
 
   return {
-    brightness: Math.round(brightness * 10) / 10,
-    contrast: Math.round(contrast * 10) / 10,
-    detail: Math.round((gradients.reduce((sum, v) => sum + v, 0) / pixels) * 100) / 100,
+    ...stats,
     motion: Math.round(mean(series) * 100) / 100,
     jitter: Math.round(pathRoughness(frames, width, height) * 100) / 100,
   };
