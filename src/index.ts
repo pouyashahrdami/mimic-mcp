@@ -21,6 +21,7 @@ import { pickCoverFrame } from "./tools/pick-cover-frame.js";
 import { analyzeCreator } from "./tools/analyze-creator.js";
 import { trackSubject } from "./tools/track-subject.js";
 import { applyBrandKitTool, listBrandKits, saveBrandKit } from "./tools/brand-kit.js";
+import { localizeReel } from "./tools/localize-reel.js";
 import { renderReel, renderStill } from "./tools/render-reel.js";
 import { reviewRender } from "./tools/review-render.js";
 import { openInStudio } from "./tools/open-in-studio.js";
@@ -178,6 +179,53 @@ server.registerTool(
           thresholdDb: threshold_db,
           minSilenceSeconds: min_silence_seconds,
         })
+      );
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "localize_reel",
+  {
+    title: "Put the reel out in another language",
+    description:
+      "Swap the captions for a translation you supply and write a renderable recipe plus " +
+      ".srt/.vtt sidecars for that language. It owns the parts that go silently wrong if you " +
+      "just swap the strings: `wordTimings` are offsets into a specific sentence, so a " +
+      "translated line would highlight the WRONG words — they are dropped unless you supply " +
+      "new ones; `emphasisWords` indices that now point past the caption are cleared; and " +
+      "because languages are not the same length, the translated reel is re-scored for " +
+      "reading speed, since a line that read fine in English can flash past in German at the " +
+      "same segment timing.",
+    inputSchema: {
+      recipe_json: z.string().optional().describe("The style recipe as JSON. Pass this or `project`."),
+      project: z.string().optional().describe("Path to a scaffolded reel project."),
+      language: z.string().describe('BCP-47 tag naming the outputs, e.g. "de" or "pt-BR"'),
+      captions: z
+        .array(z.string())
+        .describe(
+          "One translated line per segment, in order. Use an empty string for a segment " +
+            "that should stay captionless."
+        ),
+      word_timings: z
+        .array(z.array(z.number().min(0)).optional())
+        .optional()
+        .describe(
+          "Optional per-segment word offsets for the translated text — supply these (by " +
+            "transcribing a translated voiceover) to keep karaoke alive."
+        ),
+    },
+  },
+  async ({ recipe_json, project, language, captions, word_timings }) => {
+    try {
+      return ok(
+        await localizeReel(
+          { recipeJson: recipe_json, project },
+          { language, captions, wordTimings: word_timings },
+          workDir
+        )
       );
     } catch (err) {
       return fail(err);
