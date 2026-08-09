@@ -16,6 +16,7 @@
  * Pure: takes a recipe and translated lines, returns a new recipe.
  */
 
+import { countWords, swapCaption } from "./caption-swap.js";
 import type { Recipe } from "./recipe.js";
 
 export interface Translation {
@@ -34,10 +35,6 @@ export interface Translation {
 export interface LocalizedRecipe {
   recipe: Recipe;
   notes: string[];
-}
-
-function wordCount(caption: string): number {
-  return caption.trim().split(/\s+/).filter(Boolean).length;
 }
 
 export function localizeRecipe(recipe: Recipe, translation: Translation): LocalizedRecipe {
@@ -59,27 +56,14 @@ export function localizeRecipe(recipe: Recipe, translation: Translation): Locali
 
   const segments = recipe.segments.map((segment, i) => {
     const caption = captions[i];
-    const next = { ...segment, caption };
-    const words = wordCount(caption);
-    const supplied = wordTimings?.[i];
+    const swapped = swapCaption(segment, caption, wordTimings?.[i]);
+    if (swapped.lostKaraoke) lostKaraoke++;
+    if (swapped.droppedEmphasis) droppedEmphasis++;
 
-    if (supplied && supplied.length === words) {
-      next.wordTimings = supplied;
-    } else if (segment.wordTimings) {
-      // Carrying the original offsets would highlight the wrong words for the
-      // rest of the segment — worse than not highlighting at all.
-      delete next.wordTimings;
-      if (segment.captionAnimation === "karaoke") lostKaraoke++;
-    }
+    const before = countWords(segment.caption);
+    if (before > 0 && countWords(caption) > before * 1.25) grew++;
 
-    if (segment.emphasisWords && segment.emphasisWords.some((w) => w >= words)) {
-      delete next.emphasisWords;
-      droppedEmphasis++;
-    }
-
-    if (wordCount(segment.caption) > 0 && words > wordCount(segment.caption) * 1.25) grew++;
-
-    return next;
+    return swapped.segment;
   });
 
   if (lostKaraoke > 0) {

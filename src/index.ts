@@ -22,6 +22,7 @@ import { analyzeCreator } from "./tools/analyze-creator.js";
 import { trackSubject } from "./tools/track-subject.js";
 import { applyBrandKitTool, listBrandKits, saveBrandKit } from "./tools/brand-kit.js";
 import { localizeReel } from "./tools/localize-reel.js";
+import { hookVariants } from "./tools/hook-variants.js";
 import { renderReel, renderStill } from "./tools/render-reel.js";
 import { reviewRender } from "./tools/review-render.js";
 import { openInStudio } from "./tools/open-in-studio.js";
@@ -178,6 +179,51 @@ server.registerTool(
         await trimSilenceTool(video, workDir, {
           thresholdDb: threshold_db,
           minSilenceSeconds: min_silence_seconds,
+        })
+      );
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "hook_variants",
+  {
+    title: "Test several openings against one body",
+    description:
+      "Write one recipe per alternative opening, changing NOTHING else. The first second and " +
+      "a half is what creators actually A/B, and rebuilding a whole reel per hook both wastes " +
+      "a render on byte-identical frames and lets the variants differ in more than the thing " +
+      "under test. Each variant reports which segments changed — pass those to render_reel's " +
+      "`segments` and a variant costs one segment instead of a reel. Karaoke word timings on " +
+      "a replaced hook are dropped, since they index the words that were there.",
+    inputSchema: {
+      recipe_json: z.string().optional().describe("The style recipe as JSON. Pass this or `project`."),
+      project: z.string().optional().describe("Path to a scaffolded reel project."),
+      hooks: z
+        .array(z.string())
+        .min(1)
+        .describe("Alternative opening captions, one per variant."),
+      segments: z
+        .array(z.number().int().min(0))
+        .optional()
+        .describe(
+          "Which segments the hook occupies. Default [0]. Pass several when the hook spans " +
+            "more than one shot."
+        ),
+      label_from_text: z
+        .boolean()
+        .optional()
+        .describe('Name variants after the hook text ("stop-scrolling") instead of "hook-1".'),
+    },
+  },
+  async ({ recipe_json, project, hooks, segments, label_from_text }) => {
+    try {
+      return ok(
+        await hookVariants({ recipeJson: recipe_json, project }, hooks, workDir, {
+          segments,
+          labelFromText: label_from_text,
         })
       );
     } catch (err) {
