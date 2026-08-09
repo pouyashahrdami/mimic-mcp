@@ -28,37 +28,41 @@ Work through these steps in order:
 
 3. If the reference has audio, call extract_music on it to grab the soundtrack.
 
-4. Write a style recipe (JSON) that transfers that style onto the user's inputs:
-   - background.video = the user's footage
-   - segments = the user's script split into caption beats, TIMED LIKE THE REFERENCE
-     (match its average shot length and rhythm, not evenly spaced)
-   - captionStyle per segment: "hook" for the opener, "tip" for list-style points,
-     "plain" otherwise — pick based on what the reference does
-   - transitionIn: match the reference (hard cuts -> "cut", soft -> "fade"/"slide")
+4. Call draft_recipe with analyze_reference's styleSpecFile, the script split into
+   caption lines, the user's footage, and the extracted music. It projects the
+   MEASUREMENT into a first-pass recipe — one segment per shot, transition kinds and
+   durations copied verbatim, in-shot zoom with its fitted easing, caption band/size/
+   style from the OCR track, boundaries snapped to the beat grid. Do NOT hand-author
+   timing; that is exactly what this tool exists to stop you doing.
+
+5. Edit the draft — it wrote a recipe.json you can read and rewrite. Work through its
+   \`notes\` first (they list what it deliberately left to you), then the judgment calls
+   it cannot measure:
+   - caption text per segment, and captionStyle where the draft guessed wrong:
+     "hook" for the opener, "tip" for list-style points, "plain" otherwise
    - image (optional, per segment): if the reference floats screenshots/cards over the
      footage, gather or capture the equivalent images for the user's topic and set the
      path here — the caption renders directly below the card, like those reels do
-   - music = the extracted soundtrack, unless the user said otherwise
-   - output dimensions 1080x1920 @ 30fps unless the reference clearly differs
-   - durationSeconds: long enough for all segments, no longer than the music needs
-   - beat-flash montages: if the reference cuts extremely fast (sub-second shots,
-     often flipping between two source clips), build segment boundaries FROM the
-     "beats" array in analyze_reference's output — snap each start/end to an onset,
-     merge beats closer than ~0.15s so every cut lasts at least 4-5 frames, and
-     alternate backgroundVideo/backgroundStart per beat. Do not space fast cuts
-     evenly; off-beat flashing is what makes copies feel wrong
+   - colors, fonts, sound effects on the cuts, captionAnimation
+   - beat-flash montages: when the reference cuts extremely fast (sub-second shots
+     flipping between two source clips), alternate backgroundVideo/backgroundStart per
+     segment so the flashes come off different clips. Off-beat flashing is what makes
+     copies feel wrong — the draft already snapped the boundaries to onsets, so keep
+     them.
+   Leave the measured timing, transitions and zooms alone unless a frame proves them
+   wrong. They came from arithmetic; your memory of the frames did not.
 
-5. Call scaffold_reel with the recipe and a fresh project directory.
+6. Call scaffold_reel with the edited recipe and a fresh project directory.
 
-6. Call render_reel on that directory. First render is slow (installs Remotion).
+7. Call render_reel on that directory. First render is slow (installs Remotion).
 
-7. Review your own work: call review_render with the project directory AND the
+8. Review your own work: call review_render with the project directory AND the
    reference video. Open each rendered/reference frame pair and compare like an
    editor — caption size and position, card placement, pacing, overall look.
    If something is off, edit recipe.json inside the project and re-render.
    One or two fix rounds is normal; don't loop forever.
 
-8. Tell the user where the mp4 is, summarize the style choices you copied, and offer
+9. Tell the user where the mp4 is, summarize the style choices you copied, and offer
    to adjust timings, caption text, or styles — edits go in the project's recipe.json,
    then re-render.
 

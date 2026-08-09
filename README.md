@@ -52,6 +52,7 @@ The server gives the agent the tools to pull that off:
 
 | Tool | What it does |
 |------|--------------|
+| `draft_recipe` | Projects the measured style spec into a **first-pass recipe** so the agent never hand-authors timing: one segment per measured shot, transition kinds and durations copied verbatim from the fingerprints, in-shot zoom with its fitted easing, caption band/size/style from the OCR track, and segment boundaries snapped onto the beat grid. Returns the recipe plus `notes` — the judgment calls it deliberately left to the agent (captionless shots, pans the recipe can't express, leftover script lines). The agent then edits *content and look*, not arithmetic. |
 | `scaffold_reel` | Generates a ready-to-edit [Remotion](https://remotion.dev) project from a **style recipe** — a JSON description of the reel (segments, captions, animations, transitions, zoom, sound, music) that the agent writes after studying the reference. |
 | `render_reel` | Renders the Remotion project to an mp4. Pass `quality: "draft"` for a fast half-resolution preview while iterating, `"final"` for the deliverable. |
 | `review_render` | The measured QA loop: runs the render through the **same analyzer** as the reference and diffs the two style specs — cut timing, transition kinds, motion, caption timing/position/size — into a 0-100 **fidelity score** with actionable issues, each naming the recipe field to fix. Plus side-by-side frames per segment for the visual pass. |
@@ -93,8 +94,10 @@ The agent then:
 2. Looks at the frames, figures out what's actually going on: "guy coding in the
    background, big center captions, hard cuts every ~1.8s, tips appearing one by one".
 3. Calls `extract_music` to grab the soundtrack.
-4. Writes a *style recipe* — your footage as the background, your script as the
-   captions, the reference's cut timing and transitions.
+4. Calls `draft_recipe` — the measurement becomes a *style recipe* mechanically: your
+   footage as the background, the reference's cut timing, transitions and zooms copied
+   verbatim. The agent then edits it for content and look instead of retyping timing
+   from memory.
 5. Calls `scaffold_reel` to generate the Remotion project, then `render_reel`.
 6. Calls `review_render` and *looks at its own output* next to the reference:
    "the reference opens with a text-only hook before the cards — mine doesn't."

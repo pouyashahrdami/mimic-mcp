@@ -8,9 +8,9 @@ mechanics see [CONTRIBUTING.md](CONTRIBUTING.md); for agent-facing rules,
 
 ```
 reference reel ──analyze_reference──▶ StyleSpec ──┐
-                                                  │  (the agent reads both,
-your footage + script ────────────────────────────┤   writes the recipe)
-                                                  ▼
+                                                  │  draft_recipe projects the
+your footage + script ────────────────────────────┤  measurement; the agent edits
+                                                  ▼  content and look on top
                                           style recipe (JSON)
                                                   │ scaffold_reel
                                                   ▼
@@ -50,6 +50,7 @@ a reference as ground truth (review still works, minus the measured diff).
 | Tools | `src/tools/*.ts` | One file per MCP tool — the I/O boundary that wires pure logic to ffmpeg/whisper/Remotion. |
 | Analysis (pure) | `src/analysis.ts`, `scene-cuts.ts`, `transitions.ts`, `motion.ts`, `beats.ts`, `captions.ts` | ffmpeg-free math over extracted frames/samples — scene cuts, transition fingerprints, motion/easing, beats, caption track. Unit-tested without media. |
 | Contracts | `src/style-spec.ts`, `recipe.ts` | The measured StyleSpec and the authored recipe schemas. |
+| Projection | `src/draft-recipe.ts` | Turns a StyleSpec + script into a first-pass recipe — the arithmetic half of recipe authoring, so the agent only makes the judgment calls. Pure; unit-tested. |
 | Review | `src/spec-diff.ts` | Diffs two StyleSpecs into a 0–100 score with recipe-field-level issues. |
 | External wrappers | `src/ffmpeg.ts`, `whisper.ts`, `aubio.ts`, `tts.ts`, `ocr.ts` | Shell out to local binaries; fail loud or degrade cleanly when one is missing. |
 | Presets | `src/presets.ts`, `presets/*.json` | Reusable content-free looks. See [presets/README.md](presets/README.md). |

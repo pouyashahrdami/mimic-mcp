@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`draft_recipe`** — projects a measured StyleSpec into a first-pass recipe instead
+  of leaving the agent to hand-author timing: one segment per measured shot,
+  transition kinds and durations copied verbatim from the fingerprints, in-shot zoom
+  with its fitted easing, caption band/size/style from the OCR track, and segment
+  boundaries snapped onto the beat grid (the first consumer of the measured beats).
+  Returns `notes` naming the judgment calls it deliberately left to the agent.
+
+### Changed
+
+- The `mimic-mcp` workflow prompt now routes through `draft_recipe` and tells the
+  agent to edit content and look rather than re-author measured timing.
+
 ## [0.2.0] - 2026-08-07
 
 ### Added

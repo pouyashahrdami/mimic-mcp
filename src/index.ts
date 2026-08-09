@@ -9,6 +9,7 @@ import { exportVariants } from "./tools/export-variants.js";
 import { listPresets, getPreset, savePreset } from "./presets.js";
 import { transcribeReference } from "./tools/transcribe-reference.js";
 import { generateVoiceover } from "./tools/generate-voiceover.js";
+import { draftRecipeTool } from "./tools/draft-recipe.js";
 import { scaffoldReel } from "./tools/scaffold-reel.js";
 import { renderReel } from "./tools/render-reel.js";
 import { reviewRender } from "./tools/review-render.js";
@@ -162,6 +163,71 @@ server.registerTool(
           thresholdDb: threshold_db,
           minSilenceSeconds: min_silence_seconds,
         })
+      );
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "draft_recipe",
+  {
+    title: "Draft a recipe from the measured style spec",
+    description:
+      "Project an analyzed reference into a first-pass style recipe: one segment per measured " +
+      "shot, transitions and durations copied verbatim from the fingerprints, in-shot zoom with " +
+      "its fitted easing, caption band/size/style from the OCR track, boundaries snapped to the " +
+      "beat grid. Call this after analyze_reference INSTEAD of hand-authoring timing — then edit " +
+      "the draft for content and look. Returns the recipe, the file it wrote, and `notes`: the " +
+      "judgment calls left to you.",
+    inputSchema: {
+      script: z
+        .union([z.array(z.string()), z.string()])
+        .describe(
+          "Caption lines in reel order — an array, a newline-separated string, or a path to a " +
+            ".txt/.md file. Lines land on the shots that showed text in the reference."
+        ),
+      style_spec: z
+        .string()
+        .optional()
+        .describe("Path to a style-spec.json from analyze_reference (styleSpecFile in its result)"),
+      reference: z
+        .string()
+        .optional()
+        .describe(
+          "Reference video, as an alternative to style_spec — its cached spec is reused when " +
+            "present, otherwise it is analyzed now (slower)."
+        ),
+      footage: z.string().optional().describe("Absolute path to the user's footage"),
+      background_fill: z
+        .string()
+        .optional()
+        .describe("CSS color or gradient for a from-scratch reel with no footage"),
+      music: z.string().optional().describe("Absolute path to the soundtrack (e.g. from extract_music)"),
+      snap_to_beats: z
+        .boolean()
+        .optional()
+        .describe("Nudge segment boundaries onto the measured beats. Default true."),
+      out: z.string().optional().describe("Where to write recipe.json. Default <cwd>/recipe.json"),
+    },
+  },
+  async ({ script, style_spec, reference, footage, background_fill, music, snap_to_beats, out }) => {
+    try {
+      return ok(
+        await draftRecipeTool(
+          {
+            script,
+            styleSpec: style_spec,
+            reference,
+            footage,
+            backgroundFill: background_fill,
+            music,
+            snapToBeats: snap_to_beats,
+            out,
+          },
+          workDir
+        )
       );
     } catch (err) {
       return fail(err);
