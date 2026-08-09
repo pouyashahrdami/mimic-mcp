@@ -18,6 +18,7 @@ import { indexFootage } from "./tools/index-footage.js";
 import { editByTranscript } from "./tools/edit-by-transcript.js";
 import { critiqueReel } from "./tools/critique-reel.js";
 import { pickCoverFrame } from "./tools/pick-cover-frame.js";
+import { analyzeCreator } from "./tools/analyze-creator.js";
 import { renderReel, renderStill } from "./tools/render-reel.js";
 import { reviewRender } from "./tools/review-render.js";
 import { openInStudio } from "./tools/open-in-studio.js";
@@ -174,6 +175,49 @@ server.registerTool(
         await trimSilenceTool(video, workDir, {
           thresholdDb: threshold_db,
           minSilenceSeconds: min_silence_seconds,
+        })
+      );
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "analyze_creator",
+  {
+    title: "Learn a style from several reels",
+    description:
+      "Learn a style from a BODY of work instead of from one reel. A single reference can't " +
+      "tell you which of its choices were the style and which were that video's subject — " +
+      "analyze several reels from the same creator and what recurs is the style, what varies " +
+      "is the range they work in. Returns DISTRIBUTIONS (shot length p25..p75, how often each " +
+      "transition shows up, caption band and case, tempo) plus a `consistency` score saying " +
+      "how much these reels agree at all — low means they're several styles and averaging " +
+      "them produces something the creator never made. Optionally saves a preset built from " +
+      "the middle of the measurements.",
+    inputSchema: {
+      videos: z
+        .array(z.string())
+        .min(1)
+        .max(12)
+        .describe("Absolute paths to several reels by the same creator. Three or more."),
+      preset_name: z
+        .string()
+        .optional()
+        .describe("Save the learned style as a reusable preset under this name."),
+      preset_description: z
+        .string()
+        .optional()
+        .describe("Description for the saved preset. Defaults to a summary of what was measured."),
+    },
+  },
+  async ({ videos, preset_name, preset_description }) => {
+    try {
+      return ok(
+        await analyzeCreator(videos, workDir, {
+          presetName: preset_name,
+          presetDescription: preset_description,
         })
       );
     } catch (err) {

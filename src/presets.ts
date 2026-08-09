@@ -149,8 +149,19 @@ export async function savePreset(
   workDir: string
 ): Promise<{ name: string; file: string }> {
   const recipe = parseRecipe(recipeJson);
-  const preset = extractPreset(recipe, name, description);
+  return writePreset(extractPreset(recipe, name, description), workDir);
+}
 
+/**
+ * Write a preset to the user's library, refusing to clobber an existing one.
+ * Shared by save_preset and by the creator-style learner, which builds its
+ * preset from measurements rather than from a recipe.
+ */
+export async function writePreset(
+  preset: Preset,
+  workDir: string
+): Promise<{ name: string; file: string }> {
+  const { name } = preset;
   const dir = userDir(workDir);
   await mkdir(dir, { recursive: true });
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");

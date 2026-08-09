@@ -58,6 +58,7 @@ a reference as ground truth (review still works, minus the measured diff).
 | Delivery (pure) | `src/subtitles.ts`, `src/loudness.ts` | Subtitle cue building/formatting, and `loudnorm` measurement parsing + filter construction for the −14 LUFS mix. |
 | External wrappers | `src/ffmpeg.ts`, `whisper.ts`, `aubio.ts`, `tts.ts`, `ocr.ts` | Shell out to local binaries; fail loud or degrade cleanly when one is missing. |
 | Agent-facing text | `src/prompt.ts` | The `mimic-mcp` and `generate-scratch` workflow prompts exposed as slash commands. |
+| Creator style (pure) | `src/creator-style.ts` | Aggregates several StyleSpecs into distributions and habits, plus a `consistency` score, and projects the middle of them into a preset. Deliberately reports ranges rather than averages — one reel is a sample of a style, not the style. |
 | Presets | `src/presets.ts`, `presets/*.json` | Reusable content-free looks. See [presets/README.md](presets/README.md). |
 | Render target | `templates/remotion/` | Files `scaffold_reel` copies/generates into a new Remotion project, including `templates/remotion/src/audio.ts` (music gain curve: fades + ducking under narration). |
 | Concurrency | `src/parallel.ts` | `mapLimit` — bounded-concurrency fan-out, order-preserving. |
