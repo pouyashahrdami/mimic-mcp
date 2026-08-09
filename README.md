@@ -226,6 +226,7 @@ The recipe is the contract between "agent understands the reference" and "code r
   "output": { "width": 1080, "height": 1920, "fps": 30, "durationSeconds": 24 },
   "background": { "video": "/path/to/my-footage.mov", "fit": "cover" },
   "music": { "file": "/path/to/extracted-music.m4a", "volume": 0.8 },
+  "googleFonts": ["Bebas Neue"],     // loaded into the render; use as a captionFont
   "segments": [
     {
       "start": 0, "end": 2.1,

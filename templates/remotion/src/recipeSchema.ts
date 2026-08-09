@@ -79,6 +79,7 @@ export const recipeSchema = z.object({
       volume: z.number().min(0).max(1).default(0.8),
     })
     .optional(),
+  googleFonts: z.array(z.string()).optional(),
   segments: z.array(segmentSchema).min(1),
 });
 

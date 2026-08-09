@@ -43,7 +43,13 @@ Work through these steps in order:
    - image (optional, per segment): if the reference floats screenshots/cards over the
      footage, gather or capture the equivalent images for the user's topic and set the
      path here — the caption renders directly below the card, like those reels do
-   - colors, fonts, sound effects on the cuts, captionAnimation
+   - typography: match the reference's type from the OCR caption crops. A captionFont
+     is only a CSS family name, so ALSO list the family in the recipe's top-level
+     \`googleFonts\` — without that the render falls back to Helvetica and no amount of
+     other fidelity will make it look like the reference. Reach for \`captionOutline\`
+     when the reference's text stays crisp over busy footage, \`captionBackground\` for
+     the subtitle-box look, and \`emphasisWords\` when one word carries the line.
+   - colors, sound effects on the cuts, captionAnimation
    - beat-flash montages: when the reference cuts extremely fast (sub-second shots
      flipping between two source clips), alternate backgroundVideo/backgroundStart per
      segment so the flashes come off different clips. Off-beat flashing is what makes
@@ -134,7 +140,9 @@ Work through these steps in order:
 
 5. Write the recipe: segments with fills/images/scenes, captions timed to the
    voiceover or music beats, videoTransitionIn between design pages (dissolves and
-   dips read as intentional; hard cuts work when the music is punchy).
+   dips read as intentional; hard cuts work when the music is punchy). Commit to a
+   typeface: list it in the recipe's top-level \`googleFonts\` and set it as each
+   segment's \`captionFont\` — the default sans is the fastest way to look templated.
 
 6. scaffold_reel with the recipe (scene paths go in each segment's \`scene\` field —
    they get copied into src/scenes/ automatically). Then render_reel with

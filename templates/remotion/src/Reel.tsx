@@ -5,17 +5,76 @@ import {
   Img,
   OffthreadVideo,
   Sequence,
+  cancelRender,
+  continueRender,
+  delayRender,
   interpolate,
   staticFile,
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import { Fragment, type ReactNode } from "react";
+import { getAvailableFonts } from "@remotion/google-fonts";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 import type { Recipe, Segment, VideoTransition, Zoom } from "./recipeSchema";
 import { scenes } from "./scenes";
 
 const TRANSITION_FRAMES = 12;
 const DEFAULT_HIGHLIGHT = "#ffe000";
+
+/**
+ * Load the recipe's Google Fonts before the first frame is captured.
+ *
+ * A captionFont is just a CSS family name, so without this the render falls
+ * back to Helvetica whenever the family isn't installed on the machine — which
+ * is nearly always. delayRender holds the render until the webfonts are ready;
+ * a family that doesn't exist cancels the render with the near-misses listed,
+ * rather than quietly producing a reel in the wrong typeface.
+ */
+const useGoogleFonts = (families: string[] | undefined): void => {
+  const wanted = families ?? [];
+  const key = wanted.join(",");
+  const [handle] = useState(() =>
+    wanted.length > 0 ? delayRender(`Loading Google Fonts: ${key}`) : null
+  );
+
+  useEffect(() => {
+    if (handle === null) return;
+    const available = getAvailableFonts();
+    Promise.all(
+      wanted.map(async (family) => {
+        const entry = available.find((f) => f.fontFamily === family);
+        if (!entry) {
+          // Substring matching alone never fires on the common case — a typo —
+          // so also accept families sharing the first few characters.
+          const needle = family.toLowerCase().replace(/\s+/g, "");
+          const near = available
+            .filter((f) => {
+              const name = f.fontFamily.toLowerCase().replace(/\s+/g, "");
+              return (
+                name.includes(needle) ||
+                needle.includes(name) ||
+                name.slice(0, 4) === needle.slice(0, 4)
+              );
+            })
+            .slice(0, 5)
+            .map((f) => f.fontFamily);
+          throw new Error(
+            `googleFonts: "${family}" is not a Google Fonts family` +
+              (near.length > 0 ? `. Did you mean: ${near.join(", ")}?` : "")
+          );
+        }
+        const font = await entry.load();
+        await font.loadFont().waitUntilDone();
+      })
+    ).then(
+      () => continueRender(handle),
+      (err: Error) => cancelRender(err)
+    );
+    // `key` stands in for the array so a new array with the same families
+    // doesn't re-trigger the load on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handle, key]);
+};
 
 // Split a caption into words, each tagged with the frame it "lands" on. Timings
 // come either from the recipe (wordTimings, in seconds from segment start) or,
@@ -423,6 +482,7 @@ const needsUnderlap = (t?: VideoTransition): boolean =>
 
 export const Reel = (recipe: Recipe) => {
   const { fps } = useVideoConfig();
+  useGoogleFonts(recipe.googleFonts);
 
   // Any segment with its own background (slice, source, image, fill), a zoom,
   // or a video transition turns the reel into a montage: each segment renders

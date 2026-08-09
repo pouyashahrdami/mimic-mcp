@@ -278,6 +278,16 @@ export const recipeSchema = z.object({
       volume: z.number().min(0).max(1).default(0.8),
     })
     .optional(),
+  googleFonts: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Google Fonts families to load into the render, e.g. [\"Inter\", \"Bebas Neue\"]. " +
+        "Without this a captionFont only renders if the font happens to be installed on " +
+        "the machine — which it usually is not, so the reel silently falls back to " +
+        "Helvetica. List the family here AND set it as a segment's captionFont. " +
+        "Match the reference's type from analyze_reference's caption crops."
+    ),
   segments: z.array(segmentSchema).min(1),
 });
 

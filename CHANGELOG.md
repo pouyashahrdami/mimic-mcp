@@ -21,6 +21,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   an accent color, with `captionAnimation` `none` or `karaoke`).
 - A test asserting the server's recipe schema and the Remotion template's mirrored copy
   stay field-for-field identical — they had drifted apart with nothing to catch it.
+- **Real typography** — a top-level `googleFonts` list loads those families into the
+  render (via `@remotion/google-fonts`, held with `delayRender` until the webfonts are
+  ready) so `captionFont` finally renders the font it names. Previously a matched
+  reference font silently fell back to Helvetica unless it happened to be installed on
+  the render machine, which capped how close any reel could get. An unknown family
+  cancels the render with the near-misses listed instead of rendering the wrong face.
 
 ### Fixed
 
