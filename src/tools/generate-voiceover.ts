@@ -42,8 +42,10 @@ export async function generateVoiceover(
   return {
     ...vo,
     nextStep:
-      `Voiceover is ${vo.durationSeconds}s. Use it as music.file in the recipe (it's your narration track), ` +
-      `set output.durationSeconds to at least ${vo.durationSeconds}, and lay captions over it. ` +
+      `Voiceover is ${vo.durationSeconds}s. Put it in the recipe's \`voiceover\` field ` +
+      `(file + durationSeconds: ${vo.durationSeconds}) — NOT music.file, which is the ` +
+      `soundtrack slot; the two play together and the music ducks under the narration. ` +
+      `Set output.durationSeconds to at least ${vo.durationSeconds}, and lay captions over it. ` +
       `For word-synced karaoke captions, run transcribe_reference on this file to get wordTimings.`,
   };
 }

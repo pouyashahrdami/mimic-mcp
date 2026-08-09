@@ -46,17 +46,21 @@ The server gives the agent the tools to pull that off:
 | Tool | What it does |
 |------|--------------|
 | `trim_silence` | Cuts the silent gaps out of talking-head footage, concatenating the spoken parts into a tighter jump-cut clip — the tedious pass, automated. |
-| `generate_voiceover` | Turns a script into a spoken voiceover track using the built-in macOS voice (no API key). Transcribe it for word-synced karaoke captions. macOS only. |
+| `suggest_framing` | **Measures where the subject is**, per span, so cover-cropping a wide clip into a vertical frame keeps it — and a punch-in zooms toward it. `backgroundPosition` and `zoom.focusX/focusY` otherwise default to the middle, which discards the subject on any off-centre shot. Uses motion where the shot has any, edge detail when it's locked off, and returns **null rather than a guess** when no subject is clear. |
+| `generate_voiceover` | Turns a script into a spoken voiceover track using the built-in macOS voice (no API key). Goes in the recipe's `voiceover` field, where it plays over the music and the music **ducks underneath it** automatically. Transcribe it for word-synced karaoke captions. macOS only. |
 
 **Build & render**
 
 | Tool | What it does |
 |------|--------------|
+| `draft_recipe` | Projects the measured style spec into a **first-pass recipe** so the agent never hand-authors timing: one segment per measured shot, transition kinds and durations copied verbatim from the fingerprints, in-shot zoom with its fitted easing, caption band/size/style from the OCR track, and segment boundaries snapped onto the beat grid. Returns the recipe plus `notes` — the judgment calls it deliberately left to the agent (captionless shots, pans the recipe can't express, leftover script lines). It also **measures your footage per segment** (see `suggest_framing`) so crops and punch-ins arrive aimed at the subject rather than the middle. The agent then edits *content and look*, not arithmetic. |
 | `scaffold_reel` | Generates a ready-to-edit [Remotion](https://remotion.dev) project from a **style recipe** — a JSON description of the reel (segments, captions, animations, transitions, zoom, sound, music) that the agent writes after studying the reference. |
-| `render_reel` | Renders the Remotion project to an mp4. Pass `quality: "draft"` for a fast half-resolution preview while iterating, `"final"` for the deliverable. |
-| `review_render` | The measured QA loop: runs the render through the **same analyzer** as the reference and diffs the two style specs — cut timing, transition kinds, motion, caption timing/position/size — into a 0-100 **fidelity score** with actionable issues, each naming the recipe field to fix. Plus side-by-side frames per segment for the visual pass. |
+| `render_reel` | Renders the Remotion project to an mp4. Pass `quality: "draft"` for a fast half-resolution preview while iterating, `"final"` for the deliverable. Pass `segments: [3, 4]` to render **only those segments** — a fix costs one segment, not the whole reel, and lands in its own file so it can't overwrite the deliverable. Final renders are **mixed to −14 LUFS** (two-pass `loudnorm`, video stream copied) — the loudness every platform re-gains to, so the reel doesn't land quiet. |
+| `render_still` | Renders **one frame** to a PNG — the cheapest look at a layout change (caption size, wrapping, a scene's composition). No encode at all. |
+| `review_render` | The measured QA loop: runs the render through the **same analyzer** as the reference and diffs the two style specs — cut timing, transition kinds, motion, caption timing/position/size — into a 0-100 **fidelity score** with actionable issues, each naming the recipe field to fix. Plus side-by-side frames per segment for the visual pass. Pass `platform` (`tiktok`/`instagram`/`youtube-shorts`) and it also reports **captions the app's own UI would cover** — the caption bar, action rail and tab bar that no fidelity score knows about. |
 | `open_in_studio` | Launches **Remotion Studio** for the project and returns the URL — the human handoff. Preview the reel, tweak every recipe field in Studio's props panel (the composition is zod-schema'd), and export the final video interactively. |
 | `export_variants` | Re-frames the finished reel into other aspect ratios (9:16, 1:1, 4:5, 16:9) for cross-posting — center-crop or blur-padded. |
+| `export_captions` | Writes the reel's captions as **`.srt` / `.vtt` sidecars**. Burned-in captions are invisible to platforms — no accessibility, no search, no auto-translate — and the recipe already knows every line and its timing. Long captions are split into readable cues, on real word boundaries (and never across a pause) when `wordTimings` are present. |
 
 **Reusable styles**
 
@@ -93,8 +97,10 @@ The agent then:
 2. Looks at the frames, figures out what's actually going on: "guy coding in the
    background, big center captions, hard cuts every ~1.8s, tips appearing one by one".
 3. Calls `extract_music` to grab the soundtrack.
-4. Writes a *style recipe* — your footage as the background, your script as the
-   captions, the reference's cut timing and transitions.
+4. Calls `draft_recipe` — the measurement becomes a *style recipe* mechanically: your
+   footage as the background, the reference's cut timing, transitions and zooms copied
+   verbatim. The agent then edits it for content and look instead of retyping timing
+   from memory.
 5. Calls `scaffold_reel` to generate the Remotion project, then `render_reel`.
 6. Calls `review_render` and *looks at its own output* next to the reference:
    "the reference opens with a text-only hook before the cards — mine doesn't."
@@ -222,7 +228,16 @@ The recipe is the contract between "agent understands the reference" and "code r
 {
   "output": { "width": 1080, "height": 1920, "fps": 30, "durationSeconds": 24 },
   "background": { "video": "/path/to/my-footage.mov", "fit": "cover" },
-  "music": { "file": "/path/to/extracted-music.m4a", "volume": 0.8 },
+  "music": {
+    "file": "/path/to/extracted-music.m4a", "volume": 0.8,
+    "startSeconds": 12,              // open on the drop, not the intro
+    "fadeOutSeconds": 1.5,           // ramp out instead of cutting off mid-bar
+    "duckTo": 0.25                   // gain while the voiceover speaks
+  },
+  "voiceover": {                     // plays WITH the music, which ducks under it
+    "file": "/path/to/vo.m4a", "durationSeconds": 18
+  },
+  "googleFonts": ["Bebas Neue"],     // loaded into the render; use as a captionFont
   "segments": [
     {
       "start": 0, "end": 2.1,
@@ -232,6 +247,11 @@ The recipe is the contract between "agent understands the reference" and "code r
       "transitionIn": "cut",           // cut | fade | slide
       "captionAnimation": "karaoke",   // none | karaoke | typewriter
       "highlightColor": "#ffe000",     // active-word color for karaoke
+      "captionInset": 0.2,             // distance from the top/bottom edge, as a fraction of height
+      "captionOutline": { "color": "#000", "widthPx": 8 }, // hard stroke, readable over anything
+      "captionBackground": "rgba(0,0,0,0.7)",  // rounded pill behind the text
+      "emphasisWords": [4],            // pop these words (0-based) in emphasisColor
+      "emphasisColor": "#ffe000",
       "wordTimings": [0, 0.4, 0.7],    // optional per-word times (from transcribe_reference)
       "sound": "whoosh",               // pop | click | whoosh | riser, or a path
       "zoom": { "from": 1, "to": 1.3, "focusX": 0.5, "focusY": 0.4 }, // Ken-Burns punch-in
@@ -273,7 +293,15 @@ degrades or errors clearly rather than producing a silently wrong result.
 
 ## Status
 
-The core loop works end to end: analyze → recipe → scaffold → render → self-review. Style coverage is broad — karaoke/typewriter caption animations, Ken-Burns zoom punch-ins, multi-clip montages, beat detection, transition sound effects, aspect-ratio exports, reusable style presets, silence trimming, transcription and voiceover — plus fully generated from-scratch reels (fills, image backgrounds, agent-authored Remotion scenes) with no footage at all. Growing as real reference reels hit it. Issues and PRs welcome — the `presets/` folder is an easy first contribution.
+The core loop works end to end: analyze → **draft** → scaffold → render → self-review.
+
+What the measurement now drives, rather than the agent guessing at it: segment timing, transitions and zoom easing (`draft_recipe`), where the subject sits so crops and punch-ins aim at it (`suggest_framing`), caption band and size from the OCR track, and cut boundaries snapped to detected beats.
+
+Style coverage is broad — karaoke/typewriter caption animations, caption outlines, background pills and per-word emphasis, real Google Fonts, Ken-Burns punch-ins, multi-clip montages, transition sound effects, reusable style presets, silence trimming, transcription — plus fully generated from-scratch reels (fills, image backgrounds, agent-authored Remotion scenes) with no footage at all.
+
+Delivery is finished, not just rendered: a voiceover track with the music ducking under it, a −14 LUFS final mix, `.srt`/`.vtt` sidecars, aspect-ratio variants, and a safe-area check against TikTok/Instagram/Shorts UI. Iterating is cheap — single frames via `render_still`, single segments via `render_reel`'s `segments`.
+
+Growing as real reference reels hit it. Issues and PRs welcome — the `presets/` folder is an easy first contribution.
 
 ## Documentation
 

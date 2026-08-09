@@ -3,6 +3,12 @@ import path from "node:path";
 import { extractFrame, probe } from "../ffmpeg.js";
 import { mapLimit } from "../parallel.js";
 import { recipeSchema } from "../recipe.js";
+import {
+  checkSafeArea,
+  PLATFORMS,
+  PLATFORM_NAMES,
+  type SafeAreaIssue,
+} from "../safe-area.js";
 import { diffSpecs, type SpecDiff } from "../spec-diff.js";
 import type { StyleSpec } from "../style-spec.js";
 import { analyzeReference } from "./analyze-reference.js";
@@ -56,8 +62,21 @@ export interface ReviewFrame {
  */
 export async function reviewRender(
   projectDir: string,
-  referenceVideo?: string
-): Promise<{ frames: ReviewFrame[]; fidelity?: SpecDiff; instructions: string }> {
+  referenceVideo?: string,
+  platformName?: string
+): Promise<{
+  frames: ReviewFrame[];
+  fidelity?: SpecDiff;
+  safeArea?: { platform: string; issues: SafeAreaIssue[] };
+  instructions: string;
+}> {
+  const platform = platformName ? PLATFORMS[platformName] : undefined;
+  if (platformName && !platform) {
+    throw new Error(
+      `unknown platform "${platformName}" — expected one of: ${PLATFORM_NAMES.join(", ")}`
+    );
+  }
+
   const outVideo = path.join(projectDir, "out", "reel.mp4");
   await access(outVideo).catch(() => {
     throw new Error(`No render found at ${outVideo}. Run render_reel first.`);
@@ -98,12 +117,24 @@ export async function reviewRender(
   });
 
   // The measured half of the review: analyze the render with the exact same
-  // pipeline as the reference and diff the resulting specs.
+  // pipeline as the reference and diff the resulting specs. The render's own
+  // spec also carries the caption boxes the safe-area check needs, so one
+  // analysis serves both.
   let fidelity: SpecDiff | undefined;
-  if (referenceVideo) {
-    const refSpec = await referenceStyleSpec(referenceVideo, reviewDir);
-    const renderAnalysis = await analyzeReference(outVideo, reviewDir);
-    fidelity = diffSpecs(refSpec, renderAnalysis.styleSpec);
+  let safeArea: { platform: string; issues: SafeAreaIssue[] } | undefined;
+  let renderSpec: StyleSpec | undefined;
+
+  if (referenceVideo || platform) {
+    renderSpec = (await analyzeReference(outVideo, reviewDir)).styleSpec;
+  }
+  if (referenceVideo && renderSpec) {
+    fidelity = diffSpecs(await referenceStyleSpec(referenceVideo, reviewDir), renderSpec);
+  }
+  if (platform && renderSpec?.captions) {
+    safeArea = {
+      platform: platform.label,
+      issues: checkSafeArea(renderSpec.captions, platform),
+    };
   }
 
   const fidelityNote = fidelity
@@ -111,6 +142,17 @@ export async function reviewRender(
       (fidelity.issues.length > 0
         ? "Fix the `fidelity.issues` list first — each names the recipe field to change. "
         : "No measured deviations. ")
+    : "";
+
+  const safeAreaNote = platform
+    ? safeArea
+      ? safeArea.issues.length > 0
+        ? `${safeArea.issues.length} caption(s) sit under ${safeArea.platform}'s own UI — ` +
+          "see `safeArea.issues`. The reel can score 100 on fidelity and still ship with " +
+          "its text behind the caption bar, so fix these before delivering. "
+        : `Nothing collides with ${safeArea.platform}'s UI. `
+      : "Safe-area check skipped: it reads the render's OCR caption track, which needs " +
+        "the macOS Vision pass. Judge caption placement from the frames instead. "
     : "";
 
   const visualNote = referenceVideo
@@ -126,6 +168,7 @@ export async function reviewRender(
   return {
     frames,
     ...(fidelity ? { fidelity } : {}),
-    instructions: fidelityNote + visualNote,
+    ...(safeArea ? { safeArea } : {}),
+    instructions: fidelityNote + safeAreaNote + visualNote,
   };
 }

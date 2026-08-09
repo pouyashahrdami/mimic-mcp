@@ -27,6 +27,29 @@ describe("frameChangeSamples", () => {
     expect(samples[0].area).toBe(1);
   });
 
+  it("sees a color change that grayscale cannot", () => {
+    // Red (255,0,0) and a mid green (0,128,0) have near-identical luminance,
+    // so a cut between them is invisible in a grayscale diff.
+    const rgb = (r: number, g: number, b: number) => {
+      const f = new Uint8Array(W * H * 3);
+      for (let i = 0; i < W * H; i++) {
+        f[i * 3] = r;
+        f[i * 3 + 1] = g;
+        f[i * 3 + 2] = b;
+      }
+      return f;
+    };
+    const samples = frameChangeSamples(
+      [rgb(255, 0, 0), rgb(0, 128, 0)],
+      W,
+      H,
+      30,
+      { ...grid, channels: 3 }
+    );
+    expect(samples[0].diff).toBeGreaterThan(90);
+    expect(samples[0].area).toBe(1);
+  });
+
   it("reports a localized change with a small area", () => {
     const a = frame(100);
     const b = frame(100);
@@ -153,6 +176,20 @@ describe("detectSceneCuts (integration)", () => {
     expect(cuts[0].time).toBeCloseTo(2, 0);
     expect(cuts[1].time).toBeCloseTo(4, 0);
     expect(cuts.every((c) => c.type === "cut")).toBe(true);
+  }, 60_000);
+
+  it("finds a cut between two colors of equal brightness", async () => {
+    // ffmpeg's "green" is #008000: its luminance matches red's almost exactly,
+    // so this cut is invisible to a grayscale diff and was previously missed.
+    const video = path.join(dir, "equal-luma.mp4");
+    await makeCutVideo(video, [
+      { color: "red", seconds: 2 },
+      { color: "green", seconds: 2 },
+    ]);
+    const cuts = await detectSceneCuts(video);
+    expect(cuts).toHaveLength(1);
+    expect(cuts[0].time).toBeCloseTo(2, 0);
+    expect(cuts[0].type).toBe("cut");
   }, 60_000);
 
   it("detects graphic swaps on a held shot as overlays, not cuts", async () => {

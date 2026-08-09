@@ -39,7 +39,7 @@ export function frameChangeSamples(
   width: number,
   height: number,
   fps: number,
-  { cols = 12, rows = 9, cellChangeThreshold = 6 } = {}
+  { cols = 12, rows = 9, cellChangeThreshold = 6, channels = 1 } = {}
 ): FrameChangeSample[] {
   const samples: FrameChangeSample[] = [];
   const cellW = width / cols;
@@ -54,7 +54,16 @@ export function frameChangeSamples(
     for (let y = 0; y < height; y++) {
       const cellRow = Math.min(rows - 1, Math.floor(y / cellH));
       for (let x = 0; x < width; x++) {
-        const d = Math.abs(a[y * width + x] - b[y * width + x]);
+        // The LARGEST channel change, not the average. Luminance is a convex
+        // combination of the channels, so the max is always at least the
+        // grayscale difference — a cut between two colors of equal brightness
+        // (red to a mid green, say) is invisible in luma but obvious here.
+        const base = (y * width + x) * channels;
+        let d = 0;
+        for (let c = 0; c < channels; c++) {
+          const channelDiff = Math.abs(a[base + c] - b[base + c]);
+          if (channelDiff > d) d = channelDiff;
+        }
         total += d;
         const cell = cellRow * cols + Math.min(cols - 1, Math.floor(x / cellW));
         cellSums[cell] += d;

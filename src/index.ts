@@ -1,21 +1,30 @@
 #!/usr/bin/env node
+import { createRequire } from "node:module";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { analyzeReference } from "./tools/analyze-reference.js";
 import { extractMusic } from "./tools/extract-music.js";
 import { trimSilenceTool } from "./tools/trim-silence.js";
+import { exportCaptions } from "./tools/export-captions.js";
 import { exportVariants } from "./tools/export-variants.js";
 import { listPresets, getPreset, savePreset } from "./presets.js";
 import { transcribeReference } from "./tools/transcribe-reference.js";
 import { generateVoiceover } from "./tools/generate-voiceover.js";
+import { draftRecipeTool } from "./tools/draft-recipe.js";
 import { scaffoldReel } from "./tools/scaffold-reel.js";
-import { renderReel } from "./tools/render-reel.js";
+import { suggestFramingTool } from "./tools/suggest-framing.js";
+import { renderReel, renderStill } from "./tools/render-reel.js";
 import { reviewRender } from "./tools/review-render.js";
 import { openInStudio } from "./tools/open-in-studio.js";
 import { generateScratchPrompt, mimicMcpPrompt } from "./prompt.js";
 
-const server = new McpServer({ name: "mimic-mcp", version: "0.1.0" });
+// Read from package.json rather than repeating it here — the hardcoded copy sat
+// at 0.1.0 through two releases, so every client was told the wrong version.
+const require = createRequire(import.meta.url);
+const { version } = require("../package.json") as { version: string };
+
+const server = new McpServer({ name: "mimic-mcp", version });
 
 // Analysis artifacts (frames, extracted audio) land under the client's cwd.
 const workDir = process.cwd();
@@ -170,6 +179,126 @@ server.registerTool(
 );
 
 server.registerTool(
+  "suggest_framing",
+  {
+    title: "Measure where the subject is",
+    description:
+      "Measure where the subject sits in footage, per span, so cover-cropping a wide clip " +
+      "into a vertical frame keeps it — and a punch-in zooms toward it. Both " +
+      "`backgroundPosition` and `zoom.focusX/focusY` otherwise default to the middle, " +
+      "which throws the subject away on any shot that isn't centred. Uses motion when the " +
+      "shot has any, edge detail when it's locked off, and returns a null position rather " +
+      "than a guess when there's no clear subject.",
+    inputSchema: {
+      video: z.string().describe("Absolute path to the footage"),
+      spans: z
+        .array(
+          z.object({
+            start: z.number().min(0).describe("Span start in seconds"),
+            end: z.number().positive().describe("Span end in seconds"),
+          })
+        )
+        .optional()
+        .describe(
+          "Measure these spans separately — pass your recipe's segment start/end times " +
+            "to get a per-segment answer. Omit to measure the whole clip as one."
+        ),
+    },
+  },
+  async ({ video, spans }) => {
+    try {
+      return ok(await suggestFramingTool(video, spans));
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "draft_recipe",
+  {
+    title: "Draft a recipe from the measured style spec",
+    description:
+      "Project an analyzed reference into a first-pass style recipe: one segment per measured " +
+      "shot, transitions and durations copied verbatim from the fingerprints, in-shot zoom with " +
+      "its fitted easing, caption band/size/style from the OCR track, boundaries snapped to the " +
+      "beat grid. Call this after analyze_reference INSTEAD of hand-authoring timing — then edit " +
+      "the draft for content and look. Returns the recipe, the file it wrote, and `notes`: the " +
+      "judgment calls left to you.",
+    inputSchema: {
+      script: z
+        .union([z.array(z.string()), z.string()])
+        .describe(
+          "Caption lines in reel order — an array, a newline-separated string, or a path to a " +
+            ".txt/.md file. Lines land on the shots that showed text in the reference."
+        ),
+      style_spec: z
+        .string()
+        .optional()
+        .describe("Path to a style-spec.json from analyze_reference (styleSpecFile in its result)"),
+      reference: z
+        .string()
+        .optional()
+        .describe(
+          "Reference video, as an alternative to style_spec — its cached spec is reused when " +
+            "present, otherwise it is analyzed now (slower)."
+        ),
+      footage: z.string().optional().describe("Absolute path to the user's footage"),
+      background_fill: z
+        .string()
+        .optional()
+        .describe("CSS color or gradient for a from-scratch reel with no footage"),
+      music: z.string().optional().describe("Absolute path to the soundtrack (e.g. from extract_music)"),
+      snap_to_beats: z
+        .boolean()
+        .optional()
+        .describe("Nudge segment boundaries onto the measured beats. Default true."),
+      measure_framing: z
+        .boolean()
+        .optional()
+        .describe(
+          "Measure the footage per segment and aim each backgroundPosition and zoom " +
+            "focus at the subject rather than the middle of the frame. Default true " +
+            "when footage is given; costs one extra decode pass over the clip."
+        ),
+      out: z.string().optional().describe("Where to write recipe.json. Default <cwd>/recipe.json"),
+    },
+  },
+  async ({
+    script,
+    style_spec,
+    reference,
+    footage,
+    background_fill,
+    music,
+    snap_to_beats,
+    measure_framing,
+    out,
+  }) => {
+    try {
+      return ok(
+        await draftRecipeTool(
+          {
+            script,
+            styleSpec: style_spec,
+            reference,
+            footage,
+            backgroundFill: background_fill,
+            music,
+            snapToBeats: snap_to_beats,
+            measureFraming: measure_framing,
+            out,
+          },
+          workDir
+        )
+      );
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
   "scaffold_reel",
   {
     title: "Scaffold Remotion project",
@@ -210,11 +339,65 @@ server.registerTool(
           "draft = half-resolution, fast encode to out/reel-draft.mp4 for quick review loops. " +
             "final = full-quality deliverable to out/reel.mp4."
         ),
+      normalize_audio: z
+        .boolean()
+        .default(true)
+        .describe(
+          "Normalize the finished audio to -14 LUFS, the loudness every social platform " +
+            "re-gains to. Final renders only; the video stream is copied, not re-encoded. " +
+            "Turn off only when handing the mp4 to another mixing stage."
+        ),
+      segments: z
+        .array(z.number().int().min(0))
+        .optional()
+        .describe(
+          "Render ONLY these segment indices (0-based), as a fast check on a fix instead " +
+            "of paying for the whole reel. Lands in its own out/reel-segments-N.mp4 so it " +
+            "never overwrites the deliverable, and skips loudness normalization."
+        ),
     },
   },
-  async ({ project_dir, quality }) => {
+  async ({ project_dir, quality, normalize_audio, segments }) => {
     try {
-      return ok({ output: await renderReel(project_dir, quality) });
+      return ok({
+        output: await renderReel(project_dir, quality, {
+          normalizeAudio: normalize_audio,
+          segments,
+        }),
+      });
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "render_still",
+  {
+    title: "Render a single frame",
+    description:
+      "Render ONE frame of the reel to a PNG — the cheapest look at a layout change " +
+      "(caption size, position, wrapping, a scene's composition). Seconds instead of a " +
+      "whole encode. Use it while iterating on how a segment looks; use render_reel when " +
+      "you need to judge timing, motion or audio.",
+    inputSchema: {
+      project_dir: z.string().describe("A directory created by scaffold_reel"),
+      segment: z
+        .number()
+        .int()
+        .min(0)
+        .optional()
+        .describe("Segment index (0-based); the frame is taken from its midpoint"),
+      at_seconds: z
+        .number()
+        .min(0)
+        .optional()
+        .describe("Exact time into the reel, as an alternative to segment"),
+    },
+  },
+  async ({ project_dir, segment, at_seconds }) => {
+    try {
+      return ok({ output: await renderStill(project_dir, { segment, atSeconds: at_seconds }) });
     } catch (err) {
       return fail(err);
     }
@@ -236,11 +419,46 @@ server.registerTool(
         .string()
         .optional()
         .describe("Path to the original reference video, for side-by-side comparison"),
+      platform: z
+        .enum(["tiktok", "instagram", "youtube-shorts"])
+        .optional()
+        .describe(
+          "Check captions against this platform's on-screen UI (caption bar, action rail, " +
+            "tab bar) and report any the chrome would cover. A reel can score 100 on " +
+            "fidelity and still ship with its text behind the caption bar. Needs the OCR " +
+            "caption track (macOS)."
+        ),
     },
   },
-  async ({ project_dir, reference_video }) => {
+  async ({ project_dir, reference_video, platform }) => {
     try {
-      return ok(await reviewRender(project_dir, reference_video));
+      return ok(await reviewRender(project_dir, reference_video, platform));
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "export_captions",
+  {
+    title: "Export subtitle sidecars",
+    description:
+      "Write the reel's captions out as .srt / .vtt files next to the render. The reel " +
+      "burns its captions into the pixels, which leaves them invisible to platforms — no " +
+      "accessibility, no search, no auto-translate. Long captions are split into readable " +
+      "cues, on real word boundaries when the recipe has wordTimings.",
+    inputSchema: {
+      project_dir: z.string().describe("A directory created by scaffold_reel"),
+      formats: z
+        .array(z.enum(["srt", "vtt"]))
+        .default(["srt"])
+        .describe("Subtitle formats to write. srt is the common upload format; vtt for web."),
+    },
+  },
+  async ({ project_dir, formats }) => {
+    try {
+      return ok(await exportCaptions(project_dir, formats));
     } catch (err) {
       return fail(err);
     }

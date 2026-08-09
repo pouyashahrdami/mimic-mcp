@@ -5,17 +5,84 @@ import {
   Img,
   OffthreadVideo,
   Sequence,
+  cancelRender,
+  continueRender,
+  delayRender,
   interpolate,
   staticFile,
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import type { ReactNode } from "react";
+import { getAvailableFonts } from "@remotion/google-fonts";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 import type { Recipe, Segment, VideoTransition, Zoom } from "./recipeSchema";
+import { duckWindow, musicGain } from "./audio";
 import { scenes } from "./scenes";
 
 const TRANSITION_FRAMES = 12;
 const DEFAULT_HIGHLIGHT = "#ffe000";
+/**
+ * Default caption insets, as a fraction of frame height. A bottom caption has
+ * to finish above the platform's caption bar (TikTok's starts ~0.82 down,
+ * Instagram's ~0.80), and a top one has to start below the tab bar (~0.08).
+ */
+const BOTTOM_INSET = 0.2;
+const TOP_INSET = 0.12;
+
+/**
+ * Load the recipe's Google Fonts before the first frame is captured.
+ *
+ * A captionFont is just a CSS family name, so without this the render falls
+ * back to Helvetica whenever the family isn't installed on the machine — which
+ * is nearly always. delayRender holds the render until the webfonts are ready;
+ * a family that doesn't exist cancels the render with the near-misses listed,
+ * rather than quietly producing a reel in the wrong typeface.
+ */
+const useGoogleFonts = (families: string[] | undefined): void => {
+  const wanted = families ?? [];
+  const key = wanted.join(",");
+  const [handle] = useState(() =>
+    wanted.length > 0 ? delayRender(`Loading Google Fonts: ${key}`) : null
+  );
+
+  useEffect(() => {
+    if (handle === null) return;
+    const available = getAvailableFonts();
+    Promise.all(
+      wanted.map(async (family) => {
+        const entry = available.find((f) => f.fontFamily === family);
+        if (!entry) {
+          // Substring matching alone never fires on the common case — a typo —
+          // so also accept families sharing the first few characters.
+          const needle = family.toLowerCase().replace(/\s+/g, "");
+          const near = available
+            .filter((f) => {
+              const name = f.fontFamily.toLowerCase().replace(/\s+/g, "");
+              return (
+                name.includes(needle) ||
+                needle.includes(name) ||
+                name.slice(0, 4) === needle.slice(0, 4)
+              );
+            })
+            .slice(0, 5)
+            .map((f) => f.fontFamily);
+          throw new Error(
+            `googleFonts: "${family}" is not a Google Fonts family` +
+              (near.length > 0 ? `. Did you mean: ${near.join(", ")}?` : "")
+          );
+        }
+        const font = await entry.load();
+        await font.loadFont().waitUntilDone();
+      })
+    ).then(
+      () => continueRender(handle),
+      (err: Error) => cancelRender(err)
+    );
+    // `key` stands in for the array so a new array with the same families
+    // doesn't re-trigger the load on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handle, key]);
+};
 
 // Split a caption into words, each tagged with the frame it "lands" on. Timings
 // come either from the recipe (wordTimings, in seconds from segment start) or,
@@ -78,6 +145,8 @@ const CaptionText = ({
   const { fps } = useVideoConfig();
   const animation = segment.captionAnimation ?? "none";
   const wordTimings = segment.wordTimings;
+  const emphasis = new Set(segment.emphasisWords ?? []);
+  const emphasisColor = segment.emphasisColor ?? DEFAULT_HIGHLIGHT;
 
   if (animation === "karaoke") {
     const highlight =
@@ -89,20 +158,46 @@ const CaptionText = ({
           const active = frame >= startFrame;
           const justLanded = frame >= startFrame && frame < startFrame + 6;
           return (
-            <span
-              key={i}
-              style={{
-                color: active ? highlight : "rgba(255,255,255,0.55)",
-                transform: justLanded ? "scale(1.08)" : "scale(1)",
-                display: "inline-block",
-                transition: "none",
-                marginRight: "0.28em",
-              }}
-            >
-              {word}
-            </span>
+            // The space between spans is load-bearing: adjacent inline-blocks
+            // with no whitespace give the line no break opportunity, so a long
+            // caption would run off the frame instead of wrapping.
+            <Fragment key={i}>
+              <span
+                style={{
+                  color: active
+                    ? emphasis.has(i)
+                      ? emphasisColor
+                      : highlight
+                    : "rgba(255,255,255,0.55)",
+                  transform: justLanded ? "scale(1.08)" : "scale(1)",
+                  display: "inline-block",
+                  transition: "none",
+                }}
+              >
+                {word}
+              </span>{" "}
+            </Fragment>
           );
         })}
+      </>
+    );
+  }
+
+  // Static caption with one or more words popped in the accent color — the
+  // "…changed EVERYTHING" move. Only pays the per-word span cost when asked for.
+  if (animation === "none" && emphasis.size > 0) {
+    return (
+      <>
+        {segment.caption
+          .trim()
+          .split(/\s+/)
+          .map((word, i) => (
+            <Fragment key={i}>
+              <span style={emphasis.has(i) ? { color: emphasisColor } : undefined}>
+                {word}
+              </span>{" "}
+            </Fragment>
+          ))}
       </>
     );
   }
@@ -129,6 +224,7 @@ const Caption = ({
   durationInFrames: number;
 }) => {
   const frame = useCurrentFrame(); // relative to the enclosing Sequence
+  const { height } = useVideoConfig();
 
   let opacity = 1;
   let translateX = 0;
@@ -151,6 +247,8 @@ const Caption = ({
   const size = segment.captionSize;
   const font = segment.captionFont;
   const weight = segment.captionWeight;
+  const outline = segment.captionOutline;
+  const background = segment.captionBackground;
 
   const captionEl = (
     <div
@@ -164,6 +262,17 @@ const Caption = ({
         ...(size ? { fontSize: size } : {}),
         ...(font ? { fontFamily: font } : {}),
         ...(weight ? { fontWeight: weight } : {}),
+        // paintOrder keeps the stroke behind the glyph, so a thick outline
+        // thickens the letter instead of eating into it.
+        ...(outline
+          ? {
+              WebkitTextStroke: `${outline.widthPx}px ${outline.color}`,
+              paintOrder: "stroke fill",
+            }
+          : {}),
+        ...(background
+          ? { background, borderRadius: 24, padding: "24px 36px" }
+          : {}),
       }}
     >
       <CaptionText segment={segment} durationInFrames={durationInFrames} />
@@ -201,6 +310,12 @@ const Caption = ({
   }
 
   const position = segment.captionPosition ?? (isTip ? "bottom" : "center");
+  // Insets are a FRACTION of frame height, not fixed pixels: the same 220px
+  // was a fifth of a 960-tall frame and a ninth of a 1920-tall one, so the
+  // "safe" default drifted with the output size. The defaults clear the
+  // platform chrome — see src/safe-area.ts in mimic-mcp for the regions.
+  const inset =
+    segment.captionInset ?? (position === "top" ? TOP_INSET : BOTTOM_INSET);
   return (
     <AbsoluteFill
       style={{
@@ -208,8 +323,8 @@ const Caption = ({
           position === "top" ? "flex-start" : position === "bottom" ? "flex-end" : "center",
         alignItems: "center",
         padding: 64,
-        paddingTop: position === "top" ? 220 : 64,
-        paddingBottom: position === "bottom" ? 220 : 64,
+        paddingTop: position === "top" ? height * inset : 64,
+        paddingBottom: position === "bottom" ? height * inset : 64,
       }}
     >
       {/* full-width wrapper: captionEl's maxWidth must resolve against the
@@ -382,6 +497,10 @@ const needsUnderlap = (t?: VideoTransition): boolean =>
 
 export const Reel = (recipe: Recipe) => {
   const { fps } = useVideoConfig();
+  useGoogleFonts(recipe.googleFonts);
+
+  const reelFrames = Math.round(recipe.output.durationSeconds * fps);
+  const duck = duckWindow(recipe.voiceover, recipe.music, fps, reelFrames);
 
   // Any segment with its own background (slice, source, image, fill), a zoom,
   // or a video transition turns the reel into a montage: each segment renders
@@ -412,8 +531,30 @@ export const Reel = (recipe: Recipe) => {
           <AbsoluteFill style={{ background: recipe.background.fill }} />
         ) : null)}
 
+      {/* Music sits under the narration: its gain is a curve, not a constant,
+          so it fades in/out and ducks while the voiceover speaks. */}
       {recipe.music ? (
-        <Audio src={staticFile(recipe.music.file)} volume={recipe.music.volume} />
+        <Audio
+          src={staticFile(recipe.music.file)}
+          startFrom={Math.round(recipe.music.startSeconds * fps)}
+          volume={(f) =>
+            musicGain({
+              frame: f,
+              fps,
+              durationInFrames: reelFrames,
+              volume: recipe.music!.volume,
+              fadeInSeconds: recipe.music!.fadeInSeconds,
+              fadeOutSeconds: recipe.music!.fadeOutSeconds,
+              duck: duck,
+            })
+          }
+        />
+      ) : null}
+
+      {recipe.voiceover ? (
+        <Sequence from={Math.round(recipe.voiceover.startSeconds * fps)}>
+          <Audio src={staticFile(recipe.voiceover.file)} volume={recipe.voiceover.volume} />
+        </Sequence>
       ) : null}
 
       {/* Background pass. A segment whose successor enters with a blend

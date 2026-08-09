@@ -21,6 +21,11 @@ export const zoomSchema = z.object({
   easing: z.enum(["linear", "easeIn", "easeOut", "easeInOut"]).default("linear"),
 });
 
+export const captionOutlineSchema = z.object({
+  color: z.string().default("#000"),
+  widthPx: z.number().min(0).max(24).default(6),
+});
+
 export const segmentSchema = z.object({
   start: z.number().min(0),
   end: z.number().positive(),
@@ -41,6 +46,11 @@ export const segmentSchema = z.object({
   captionFont: z.string().optional(),
   captionSize: z.number().positive().optional(),
   captionWeight: z.number().min(100).max(900).optional(),
+  captionInset: z.number().min(0).max(0.45).optional(),
+  captionOutline: captionOutlineSchema.optional(),
+  captionBackground: z.string().optional(),
+  emphasisWords: z.array(z.number().int().min(0)).optional(),
+  emphasisColor: z.string().optional(),
   transitionIn: z.enum(["cut", "fade", "slide"]).default("cut"),
   sound: z.string().optional(),
   soundVolume: z.number().min(0).max(1).optional(),
@@ -68,8 +78,22 @@ export const recipeSchema = z.object({
     .object({
       file: z.string(),
       volume: z.number().min(0).max(1).default(0.8),
+      startSeconds: z.number().min(0).default(0),
+      fadeInSeconds: z.number().min(0).max(10).default(0),
+      fadeOutSeconds: z.number().min(0).max(10).default(1.5),
+      duckUnderVoiceover: z.boolean().default(true),
+      duckTo: z.number().min(0).max(1).default(0.25),
     })
     .optional(),
+  voiceover: z
+    .object({
+      file: z.string(),
+      volume: z.number().min(0).max(1).default(1),
+      startSeconds: z.number().min(0).default(0),
+      durationSeconds: z.number().positive().optional(),
+    })
+    .optional(),
+  googleFonts: z.array(z.string()).optional(),
   segments: z.array(segmentSchema).min(1),
 });
 
@@ -86,4 +110,5 @@ export type SceneProps = {
   durationInFrames: number;
 };
 export type Zoom = z.infer<typeof zoomSchema>;
+export type CaptionOutline = z.infer<typeof captionOutlineSchema>;
 export type VideoTransition = z.infer<typeof videoTransitionSchema>;

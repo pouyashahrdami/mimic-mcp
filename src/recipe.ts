@@ -172,6 +172,49 @@ export const segmentSchema = z.object({
       "CSS font-weight overriding the caption style's default (the built-in looks are bold; " +
         "set 400 for the delicate editorial-serif reference style)."
     ),
+  captionOutline: z
+    .object({
+      color: z.string().default("#000").describe("CSS color of the outline"),
+      widthPx: z.number().min(0).max(24).default(6).describe("Stroke width in px"),
+    })
+    .optional()
+    .describe(
+      "Contrasting outline drawn around the caption's letters — the hard black stroke " +
+        "that keeps TikTok/Reels captions readable over ANY footage. Reach for this " +
+        "instead of a drop shadow when the reference's text stays crisp over busy shots."
+    ),
+  captionInset: z
+    .number()
+    .min(0)
+    .max(0.45)
+    .optional()
+    .describe(
+      "How far a top/center-banded or bottom-banded caption sits from that edge, as a " +
+        "fraction of the output HEIGHT. Defaults clear the platform chrome (TikTok's " +
+        "caption bar starts around 0.82 from the top, its tab bar ends around 0.08). " +
+        "Lower it only when copying a reference that deliberately runs text to the edge — " +
+        "and check with review_render's `platform` that it stays readable."
+    ),
+  captionBackground: z
+    .string()
+    .optional()
+    .describe(
+      "CSS background painted as a rounded pill behind the caption (color or gradient, " +
+        "e.g. \"rgba(0,0,0,0.7)\" or \"#ffe000\"). The subtitle-box look. " +
+        "captionStyle \"tip\" already has one; this overrides it."
+    ),
+  emphasisWords: z
+    .array(z.number().int().min(0))
+    .optional()
+    .describe(
+      "Indices of words in `caption` (0-based, whitespace-split) to paint in " +
+        "`emphasisColor` — the one-word-popped look reels use to land the point. " +
+        "Works with captionAnimation none and karaoke."
+    ),
+  emphasisColor: z
+    .string()
+    .optional()
+    .describe("CSS color for `emphasisWords` (default: the karaoke accent)."),
   transitionIn: z
     .enum(["cut", "fade", "slide"])
     .default("cut")
@@ -245,8 +288,70 @@ export const recipeSchema = z.object({
     .object({
       file: z.string().describe("Absolute path to the soundtrack (e.g. from extract_music)"),
       volume: z.number().min(0).max(1).default(0.8),
+      startSeconds: z
+        .number()
+        .min(0)
+        .default(0)
+        .describe(
+          "Seconds into the track where playback starts — skip a long intro and open " +
+            "on the drop, the way reels use the hookiest 20 seconds of a song."
+        ),
+      fadeInSeconds: z.number().min(0).max(10).default(0).describe("Ramp the music up over this long"),
+      fadeOutSeconds: z
+        .number()
+        .min(0)
+        .max(10)
+        .default(1.5)
+        .describe(
+          "Ramp the music down into the last seconds of the reel. Without this the " +
+            "track is cut off mid-bar, which is the most audible tell of an auto-edit."
+        ),
+      duckUnderVoiceover: z
+        .boolean()
+        .default(true)
+        .describe("Drop the music while the voiceover speaks. No effect without a voiceover."),
+      duckTo: z
+        .number()
+        .min(0)
+        .max(1)
+        .default(0.25)
+        .describe("Music gain multiplier while ducked (0.25 = a quarter as loud)."),
     })
     .optional(),
+  voiceover: z
+    .object({
+      file: z.string().describe("Absolute path to the narration audio (e.g. from generate_voiceover)"),
+      volume: z.number().min(0).max(1).default(1),
+      startSeconds: z
+        .number()
+        .min(0)
+        .default(0)
+        .describe("Seconds into the REEL where the narration begins"),
+      durationSeconds: z
+        .number()
+        .positive()
+        .optional()
+        .describe(
+          "How long the narration runs (generate_voiceover reports it). Used to duck " +
+            "the music only while it speaks; without it the music stays ducked to the end."
+        ),
+    })
+    .optional()
+    .describe(
+      "A narration track that plays ALONGSIDE the music, which then ducks underneath it. " +
+        "Use this for voiceovers rather than putting narration in music.file — that slot " +
+        "silences the soundtrack."
+    ),
+  googleFonts: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Google Fonts families to load into the render, e.g. [\"Inter\", \"Bebas Neue\"]. " +
+        "Without this a captionFont only renders if the font happens to be installed on " +
+        "the machine — which it usually is not, so the reel silently falls back to " +
+        "Helvetica. List the family here AND set it as a segment's captionFont. " +
+        "Match the reference's type from analyze_reference's caption crops."
+    ),
   segments: z.array(segmentSchema).min(1),
 });
 
@@ -296,13 +401,18 @@ export function parseRecipe(json: string): Recipe {
           "segment to transition from — only dips work on the first segment"
       );
     }
-    if (seg.wordTimings) {
-      const wordCount = seg.caption.trim().split(/\s+/).filter(Boolean).length;
-      if (seg.wordTimings.length !== wordCount) {
-        throw new Error(
-          `segment ${i}: wordTimings has ${seg.wordTimings.length} entries but the caption has ${wordCount} words`
-        );
-      }
+    const wordCount = seg.caption.trim().split(/\s+/).filter(Boolean).length;
+    if (seg.wordTimings && seg.wordTimings.length !== wordCount) {
+      throw new Error(
+        `segment ${i}: wordTimings has ${seg.wordTimings.length} entries but the caption has ${wordCount} words`
+      );
+    }
+    const strayEmphasis = seg.emphasisWords?.filter((w) => w >= wordCount);
+    if (strayEmphasis && strayEmphasis.length > 0) {
+      throw new Error(
+        `segment ${i}: emphasisWords ${strayEmphasis.join(", ")} are out of range — ` +
+          `the caption has ${wordCount} word(s), so indices run 0..${wordCount - 1}`
+      );
     }
   }
 
