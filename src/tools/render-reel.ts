@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { access } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
+import { normalizeLoudness, probe } from "../ffmpeg.js";
 
 const run = promisify(execFile);
 const MAX_BUFFER = 64 * 1024 * 1024;
@@ -31,7 +32,8 @@ export function renderOutputPath(projectDir: string, quality: RenderQuality): st
 
 export async function renderReel(
   projectDir: string,
-  quality: RenderQuality = "final"
+  quality: RenderQuality = "final",
+  { normalizeAudio = true }: { normalizeAudio?: boolean } = {}
 ): Promise<string> {
   const projectPath = path.resolve(projectDir);
 
@@ -62,6 +64,13 @@ export async function renderReel(
   }
 
   await run("npx", args, { cwd: projectPath, maxBuffer: MAX_BUFFER });
+
+  // Deliverables get mixed to the loudness every platform normalizes to, so
+  // they aren't quietly re-gained (or left noticeably quiet) after upload.
+  // Drafts skip it: it's a finishing step, and draft renders are for looking.
+  if (normalizeAudio && quality === "final" && (await probe(outPath)).hasAudio) {
+    await normalizeLoudness(outPath);
+  }
 
   return outPath;
 }

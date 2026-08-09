@@ -276,11 +276,21 @@ server.registerTool(
           "draft = half-resolution, fast encode to out/reel-draft.mp4 for quick review loops. " +
             "final = full-quality deliverable to out/reel.mp4."
         ),
+      normalize_audio: z
+        .boolean()
+        .default(true)
+        .describe(
+          "Normalize the finished audio to -14 LUFS, the loudness every social platform " +
+            "re-gains to. Final renders only; the video stream is copied, not re-encoded. " +
+            "Turn off only when handing the mp4 to another mixing stage."
+        ),
     },
   },
-  async ({ project_dir, quality }) => {
+  async ({ project_dir, quality, normalize_audio }) => {
     try {
-      return ok({ output: await renderReel(project_dir, quality) });
+      return ok({
+        output: await renderReel(project_dir, quality, { normalizeAudio: normalize_audio }),
+      });
     } catch (err) {
       return fail(err);
     }

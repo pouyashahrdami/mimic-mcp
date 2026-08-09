@@ -36,6 +36,12 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   audible tell of an auto-edit). Previously narration had to go in `music.file`, so a
   reel could have narration or music but never both.
 
+- **Loudness normalization.** Final renders are mixed to −14 LUFS with two-pass
+  `loudnorm` (measure, then a single linear gain move — one-pass pumps on sparse
+  material like a voiceover over a quiet bed). The video stream is copied rather than
+  re-encoded, so it costs one audio pass. Silent reels are detected and left alone
+  instead of having their noise floor amplified. Opt out with `normalize_audio: false`.
+
 ### Fixed
 
 - `render_reel` applied a **relative** project directory twice (it also passes the

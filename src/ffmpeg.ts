@@ -1,8 +1,16 @@
 import { execFile } from "node:child_process";
-import { readdir } from "node:fs/promises";
+import { readdir, rename } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { estimateBpm, frameChangeSamples, pickSceneCuts, type SceneCut } from "./analysis.js";
+import {
+  applyFilter,
+  isNormalizable,
+  measureFilter,
+  parseLoudnorm,
+  TARGET_LUFS,
+  type LoudnessMeasurement,
+} from "./loudness.js";
 
 const run = promisify(execFile);
 
@@ -503,4 +511,44 @@ export async function extractAudio(
     "-b:a", "192k",
     outPath,
   ]);
+}
+
+/**
+ * Normalize a rendered video's audio to broadcast/streaming loudness in place,
+ * two-pass so the gain move is measured rather than dynamic (one-pass loudnorm
+ * pumps on sparse material like a voiceover over a quiet bed).
+ *
+ * The video stream is copied, not re-encoded, so this costs an audio pass and
+ * nothing else. Returns the measurement when it normalized, or null when the
+ * reel is silent and there was nothing to do.
+ */
+export async function normalizeLoudness(
+  videoPath: string,
+  targetLufs: number = TARGET_LUFS
+): Promise<LoudnessMeasurement | null> {
+  const { stderr } = await exec("ffmpeg", [
+    "-i", videoPath,
+    "-af", measureFilter(),
+    "-f", "null",
+    "-",
+  ]);
+
+  const measurement = parseLoudnorm(stderr);
+  if (!isNormalizable(measurement)) return null;
+
+  // Write beside the target and swap, so an interrupted second pass can never
+  // leave a half-written mp4 where the finished render used to be.
+  const tmpPath = `${videoPath}.loudnorm${path.extname(videoPath)}`;
+  await exec("ffmpeg", [
+    "-y",
+    "-i", videoPath,
+    "-af", applyFilter(measurement, targetLufs),
+    "-c:v", "copy",
+    "-c:a", "aac",
+    "-b:a", "192k",
+    tmpPath,
+  ]);
+  await rename(tmpPath, videoPath);
+
+  return measurement;
 }
