@@ -48,21 +48,24 @@ a reference as ground truth (review still works, minus the measured diff).
 |------|-------|----------------|
 | MCP entry | `src/index.ts` | Registers every tool + the slash prompt over stdio. |
 | Tools | `src/tools/*.ts` | One file per MCP tool — the I/O boundary that wires pure logic to ffmpeg/whisper/Remotion. |
-| Analysis (pure) | `src/analysis.ts`, `scene-cuts.ts`, `transitions.ts`, `motion.ts`, `beats.ts`, `captions.ts` | ffmpeg-free math over extracted frames/samples — scene cuts, transition fingerprints, motion/easing, beats, caption track. Unit-tested without media. |
+| Analysis (pure) | `src/analysis.ts` (scene cuts, transition fingerprints, motion/easing, beats), `src/captions.ts` (OCR caption track), `src/framing.ts` (subject location) | ffmpeg-free math over extracted frames/samples. Unit-tested without media. The colocated `scene-cuts.test.ts` / `transitions.test.ts` / `motion.test.ts` / `beats.test.ts` all exercise `analysis.ts` — the tests are split by concern, the module is not. |
 | Contracts | `src/style-spec.ts`, `recipe.ts` | The measured StyleSpec and the authored recipe schemas. |
 | Projection | `src/draft-recipe.ts` | Turns a StyleSpec + script into a first-pass recipe — the arithmetic half of recipe authoring, so the agent only makes the judgment calls. Pure; unit-tested. |
-| Review | `src/spec-diff.ts` | Diffs two StyleSpecs into a 0–100 score with recipe-field-level issues. |
+| Review | `src/spec-diff.ts`, `src/safe-area.ts` | Diffs two StyleSpecs into a 0–100 score with recipe-field-level issues, and flags captions the target platform's own UI would cover. |
+| Delivery (pure) | `src/subtitles.ts`, `src/loudness.ts` | Subtitle cue building/formatting, and `loudnorm` measurement parsing + filter construction for the −14 LUFS mix. |
 | External wrappers | `src/ffmpeg.ts`, `whisper.ts`, `aubio.ts`, `tts.ts`, `ocr.ts` | Shell out to local binaries; fail loud or degrade cleanly when one is missing. |
+| Agent-facing text | `src/prompt.ts` | The `mimic-mcp` and `generate-scratch` workflow prompts exposed as slash commands. |
 | Presets | `src/presets.ts`, `presets/*.json` | Reusable content-free looks. See [presets/README.md](presets/README.md). |
-| Render target | `templates/remotion/` | Files `scaffold_reel` copies/generates into a new Remotion project. |
+| Render target | `templates/remotion/` | Files `scaffold_reel` copies/generates into a new Remotion project, including `templates/remotion/src/audio.ts` (music gain curve: fades + ducking under narration). |
 | Concurrency | `src/parallel.ts` | `mapLimit` — bounded-concurrency fan-out, order-preserving. |
 
 ## The key convention: pure logic, thin I/O
 
-The analysis and caption modules are deliberately **ffmpeg-free and Vision-free** — they
-take already-extracted frames or OCR samples and do math. The `src/tools/*` and
+The analysis, caption, framing, subtitle and loudness modules are deliberately
+**ffmpeg-free and Vision-free** — they take already-extracted frames, OCR samples or
+tool output and do math on them. The `src/tools/*` and
 `src/{ffmpeg,whisper,ocr,tts,aubio}.ts` wrappers own the messy I/O. That split is why
-`analysis.ts` and `captions.ts` have thorough unit tests with no media fixtures.
+those modules have thorough unit tests with no media fixtures.
 
 When you add behavior, keep the decision logic in a pure module with a colocated
 `*.test.ts`, and keep the wrapper that feeds it thin. New tools go in `src/tools/` and

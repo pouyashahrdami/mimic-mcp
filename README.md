@@ -292,7 +292,15 @@ degrades or errors clearly rather than producing a silently wrong result.
 
 ## Status
 
-The core loop works end to end: analyze → recipe → scaffold → render → self-review. Style coverage is broad — karaoke/typewriter caption animations, Ken-Burns zoom punch-ins, multi-clip montages, beat detection, transition sound effects, aspect-ratio exports, reusable style presets, silence trimming, transcription and voiceover — plus fully generated from-scratch reels (fills, image backgrounds, agent-authored Remotion scenes) with no footage at all. Growing as real reference reels hit it. Issues and PRs welcome — the `presets/` folder is an easy first contribution.
+The core loop works end to end: analyze → **draft** → scaffold → render → self-review.
+
+What the measurement now drives, rather than the agent guessing at it: segment timing, transitions and zoom easing (`draft_recipe`), where the subject sits so crops and punch-ins aim at it (`suggest_framing`), caption band and size from the OCR track, and cut boundaries snapped to detected beats.
+
+Style coverage is broad — karaoke/typewriter caption animations, caption outlines, background pills and per-word emphasis, real Google Fonts, Ken-Burns punch-ins, multi-clip montages, transition sound effects, reusable style presets, silence trimming, transcription — plus fully generated from-scratch reels (fills, image backgrounds, agent-authored Remotion scenes) with no footage at all.
+
+Delivery is finished, not just rendered: a voiceover track with the music ducking under it, a −14 LUFS final mix, `.srt`/`.vtt` sidecars, aspect-ratio variants, and a safe-area check against TikTok/Instagram/Shorts UI. Iterating is cheap — single frames via `render_still`, single segments via `render_reel`'s `segments`.
+
+Growing as real reference reels hit it. Issues and PRs welcome — the `presets/` folder is an easy first contribution.
 
 ## Documentation
 

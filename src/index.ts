@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createRequire } from "node:module";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -18,7 +19,12 @@ import { reviewRender } from "./tools/review-render.js";
 import { openInStudio } from "./tools/open-in-studio.js";
 import { generateScratchPrompt, mimicMcpPrompt } from "./prompt.js";
 
-const server = new McpServer({ name: "mimic-mcp", version: "0.1.0" });
+// Read from package.json rather than repeating it here — the hardcoded copy sat
+// at 0.1.0 through two releases, so every client was told the wrong version.
+const require = createRequire(import.meta.url);
+const { version } = require("../package.json") as { version: string };
+
+const server = new McpServer({ name: "mimic-mcp", version });
 
 // Analysis artifacts (frames, extracted audio) land under the client's cwd.
 const workDir = process.cwd();
