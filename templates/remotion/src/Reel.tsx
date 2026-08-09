@@ -16,6 +16,7 @@ import {
 import { getAvailableFonts } from "@remotion/google-fonts";
 import { Fragment, useEffect, useState, type ReactNode } from "react";
 import type { Recipe, Segment, VideoTransition, Zoom } from "./recipeSchema";
+import { duckWindow, musicGain } from "./audio";
 import { scenes } from "./scenes";
 
 const TRANSITION_FRAMES = 12;
@@ -484,6 +485,9 @@ export const Reel = (recipe: Recipe) => {
   const { fps } = useVideoConfig();
   useGoogleFonts(recipe.googleFonts);
 
+  const reelFrames = Math.round(recipe.output.durationSeconds * fps);
+  const duck = duckWindow(recipe.voiceover, recipe.music, fps, reelFrames);
+
   // Any segment with its own background (slice, source, image, fill), a zoom,
   // or a video transition turns the reel into a montage: each segment renders
   // its own background layer instead of one continuous take.
@@ -513,8 +517,30 @@ export const Reel = (recipe: Recipe) => {
           <AbsoluteFill style={{ background: recipe.background.fill }} />
         ) : null)}
 
+      {/* Music sits under the narration: its gain is a curve, not a constant,
+          so it fades in/out and ducks while the voiceover speaks. */}
       {recipe.music ? (
-        <Audio src={staticFile(recipe.music.file)} volume={recipe.music.volume} />
+        <Audio
+          src={staticFile(recipe.music.file)}
+          startFrom={Math.round(recipe.music.startSeconds * fps)}
+          volume={(f) =>
+            musicGain({
+              frame: f,
+              fps,
+              durationInFrames: reelFrames,
+              volume: recipe.music!.volume,
+              fadeInSeconds: recipe.music!.fadeInSeconds,
+              fadeOutSeconds: recipe.music!.fadeOutSeconds,
+              duck: duck,
+            })
+          }
+        />
+      ) : null}
+
+      {recipe.voiceover ? (
+        <Sequence from={Math.round(recipe.voiceover.startSeconds * fps)}>
+          <Audio src={staticFile(recipe.voiceover.file)} volume={recipe.voiceover.volume} />
+        </Sequence>
       ) : null}
 
       {/* Background pass. A segment whose successor enters with a blend

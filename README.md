@@ -46,7 +46,7 @@ The server gives the agent the tools to pull that off:
 | Tool | What it does |
 |------|--------------|
 | `trim_silence` | Cuts the silent gaps out of talking-head footage, concatenating the spoken parts into a tighter jump-cut clip — the tedious pass, automated. |
-| `generate_voiceover` | Turns a script into a spoken voiceover track using the built-in macOS voice (no API key). Transcribe it for word-synced karaoke captions. macOS only. |
+| `generate_voiceover` | Turns a script into a spoken voiceover track using the built-in macOS voice (no API key). Goes in the recipe's `voiceover` field, where it plays over the music and the music **ducks underneath it** automatically. Transcribe it for word-synced karaoke captions. macOS only. |
 
 **Build & render**
 
@@ -225,7 +225,15 @@ The recipe is the contract between "agent understands the reference" and "code r
 {
   "output": { "width": 1080, "height": 1920, "fps": 30, "durationSeconds": 24 },
   "background": { "video": "/path/to/my-footage.mov", "fit": "cover" },
-  "music": { "file": "/path/to/extracted-music.m4a", "volume": 0.8 },
+  "music": {
+    "file": "/path/to/extracted-music.m4a", "volume": 0.8,
+    "startSeconds": 12,              // open on the drop, not the intro
+    "fadeOutSeconds": 1.5,           // ramp out instead of cutting off mid-bar
+    "duckTo": 0.25                   // gain while the voiceover speaks
+  },
+  "voiceover": {                     // plays WITH the music, which ducks under it
+    "file": "/path/to/vo.m4a", "durationSeconds": 18
+  },
   "googleFonts": ["Bebas Neue"],     // loaded into the render; use as a captionFont
   "segments": [
     {

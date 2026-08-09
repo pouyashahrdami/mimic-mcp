@@ -136,7 +136,10 @@ Work through these steps in order:
 
 4. Sound: generate_voiceover for narration (transcribe it for karaoke wordTimings),
    extracted or user-provided music, and per-segment sound effects ("pop", "whoosh")
-   on the cuts. Silent reels feel broken; always give the reel audio.
+   on the cuts. Silent reels feel broken; always give the reel audio. Narration goes
+   in the recipe's \`voiceover\` field and music in \`music\` — they play together and
+   the music ducks itself under the voice. Set voiceover.durationSeconds so the duck
+   releases when the narration actually stops.
 
 5. Write the recipe: segments with fills/images/scenes, captions timed to the
    voiceover or music beats, videoTransitionIn between design pages (dissolves and

@@ -276,8 +276,60 @@ export const recipeSchema = z.object({
     .object({
       file: z.string().describe("Absolute path to the soundtrack (e.g. from extract_music)"),
       volume: z.number().min(0).max(1).default(0.8),
+      startSeconds: z
+        .number()
+        .min(0)
+        .default(0)
+        .describe(
+          "Seconds into the track where playback starts — skip a long intro and open " +
+            "on the drop, the way reels use the hookiest 20 seconds of a song."
+        ),
+      fadeInSeconds: z.number().min(0).max(10).default(0).describe("Ramp the music up over this long"),
+      fadeOutSeconds: z
+        .number()
+        .min(0)
+        .max(10)
+        .default(1.5)
+        .describe(
+          "Ramp the music down into the last seconds of the reel. Without this the " +
+            "track is cut off mid-bar, which is the most audible tell of an auto-edit."
+        ),
+      duckUnderVoiceover: z
+        .boolean()
+        .default(true)
+        .describe("Drop the music while the voiceover speaks. No effect without a voiceover."),
+      duckTo: z
+        .number()
+        .min(0)
+        .max(1)
+        .default(0.25)
+        .describe("Music gain multiplier while ducked (0.25 = a quarter as loud)."),
     })
     .optional(),
+  voiceover: z
+    .object({
+      file: z.string().describe("Absolute path to the narration audio (e.g. from generate_voiceover)"),
+      volume: z.number().min(0).max(1).default(1),
+      startSeconds: z
+        .number()
+        .min(0)
+        .default(0)
+        .describe("Seconds into the REEL where the narration begins"),
+      durationSeconds: z
+        .number()
+        .positive()
+        .optional()
+        .describe(
+          "How long the narration runs (generate_voiceover reports it). Used to duck " +
+            "the music only while it speaks; without it the music stays ducked to the end."
+        ),
+    })
+    .optional()
+    .describe(
+      "A narration track that plays ALONGSIDE the music, which then ducks underneath it. " +
+        "Use this for voiceovers rather than putting narration in music.file — that slot " +
+        "silences the soundtrack."
+    ),
   googleFonts: z
     .array(z.string())
     .optional()

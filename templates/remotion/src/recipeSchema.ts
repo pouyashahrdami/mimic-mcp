@@ -77,6 +77,19 @@ export const recipeSchema = z.object({
     .object({
       file: z.string(),
       volume: z.number().min(0).max(1).default(0.8),
+      startSeconds: z.number().min(0).default(0),
+      fadeInSeconds: z.number().min(0).max(10).default(0),
+      fadeOutSeconds: z.number().min(0).max(10).default(1.5),
+      duckUnderVoiceover: z.boolean().default(true),
+      duckTo: z.number().min(0).max(1).default(0.25),
+    })
+    .optional(),
+  voiceover: z
+    .object({
+      file: z.string(),
+      volume: z.number().min(0).max(1).default(1),
+      startSeconds: z.number().min(0).default(0),
+      durationSeconds: z.number().positive().optional(),
     })
     .optional(),
   googleFonts: z.array(z.string()).optional(),

@@ -101,6 +101,10 @@ export async function scaffoldReel(
     localized.music = { ...recipe.music, file: await stage(recipe.music.file) };
   }
 
+  if (recipe.voiceover) {
+    localized.voiceover = { ...recipe.voiceover, file: await stage(recipe.voiceover.file) };
+  }
+
   // Custom scenes are code, not media: they land in src/scenes/ (not public/)
   // and get a generated registry so Reel.tsx can resolve them by name.
   const scenesDir = path.join(projectDir, "src", "scenes");

@@ -28,6 +28,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the render machine, which capped how close any reel could get. An unknown family
   cancels the render with the near-misses listed instead of rendering the wrong face.
 
+- **A real audio mix.** A `voiceover` track that plays *alongside* the music, with the
+  music **ducking underneath it** automatically (ramping in before the first syllable
+  and out after the last, rather than snapping on the voice). Music also gained
+  `startSeconds` (open on the drop instead of the intro), `fadeInSeconds` and
+  `fadeOutSeconds` (default 1.5s — the track no longer cuts off mid-bar, the most
+  audible tell of an auto-edit). Previously narration had to go in `music.file`, so a
+  reel could have narration or music but never both.
+
 ### Fixed
 
 - `render_reel` applied a **relative** project directory twice (it also passes the
