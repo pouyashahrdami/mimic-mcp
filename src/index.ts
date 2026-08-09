@@ -16,6 +16,7 @@ import { scaffoldReel } from "./tools/scaffold-reel.js";
 import { suggestFramingTool } from "./tools/suggest-framing.js";
 import { indexFootage } from "./tools/index-footage.js";
 import { editByTranscript } from "./tools/edit-by-transcript.js";
+import { critiqueReel } from "./tools/critique-reel.js";
 import { renderReel, renderStill } from "./tools/render-reel.js";
 import { reviewRender } from "./tools/review-render.js";
 import { openInStudio } from "./tools/open-in-studio.js";
@@ -174,6 +175,39 @@ server.registerTool(
           minSilenceSeconds: min_silence_seconds,
         })
       );
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "critique_reel",
+  {
+    title: "Critique a reel with no reference",
+    description:
+      "Score a reel against ITSELF — the feedback a from-scratch reel never gets, because " +
+      "review_render can only tell you how closely you matched a reference. Measures what " +
+      "makes a reel unreadable or unwatchable regardless of style: captions going past faster " +
+      "than anyone reads them, an opening that says nothing in the first 1.5s, text with no " +
+      "outline or pill to separate it from the footage, every segment the same length, dead " +
+      "air, shots held too long, a landscape output. Returns a 0-100 score and issues that " +
+      "each name the recipe field to change, plus the measurements behind them so you can " +
+      "overrule a heuristic you can see is wrong for this reel.",
+    inputSchema: {
+      recipe_json: z
+        .string()
+        .optional()
+        .describe("The style recipe as a JSON string. Pass this or `project`."),
+      project: z
+        .string()
+        .optional()
+        .describe("Path to a scaffolded reel project; reads its recipe.json."),
+    },
+  },
+  async ({ recipe_json, project }) => {
+    try {
+      return ok(await critiqueReel({ recipeJson: recipe_json, project }));
     } catch (err) {
       return fail(err);
     }

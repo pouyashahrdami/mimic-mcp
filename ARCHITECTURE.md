@@ -53,7 +53,7 @@ a reference as ground truth (review still works, minus the measured diff).
 | Transcript editing (pure) | `src/transcript-edit.ts` | Plans cuts from word-level timings (disfluencies, crutch words, quoted phrases), inverts them into keep ranges, re-times the surviving words onto the edited clip, and groups them into caption segments via `subtitles.ts` so burned-in captions and the sidecar split identically. |
 | Contracts | `src/style-spec.ts`, `recipe.ts` | The measured StyleSpec and the authored recipe schemas. |
 | Projection | `src/draft-recipe.ts` | Turns a StyleSpec + script into a first-pass recipe — the arithmetic half of recipe authoring, so the agent only makes the judgment calls. Pure; unit-tested. |
-| Review | `src/spec-diff.ts`, `src/safe-area.ts` | Diffs two StyleSpecs into a 0–100 score with recipe-field-level issues, and flags captions the target platform's own UI would cover. |
+| Review | `src/spec-diff.ts`, `src/safe-area.ts`, `src/critique.ts` | Diffs two StyleSpecs into a 0–100 score with recipe-field-level issues, and flags captions the target platform's own UI would cover. `critique.ts` is the reference-free half: readability and pacing heuristics measured from the recipe alone, which is the only automated feedback a from-scratch reel can get. |
 | Delivery (pure) | `src/subtitles.ts`, `src/loudness.ts` | Subtitle cue building/formatting, and `loudnorm` measurement parsing + filter construction for the −14 LUFS mix. |
 | External wrappers | `src/ffmpeg.ts`, `whisper.ts`, `aubio.ts`, `tts.ts`, `ocr.ts` | Shell out to local binaries; fail loud or degrade cleanly when one is missing. |
 | Agent-facing text | `src/prompt.ts` | The `mimic-mcp` and `generate-scratch` workflow prompts exposed as slash commands. |
