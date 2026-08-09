@@ -69,6 +69,22 @@ export const segmentSchema = z.object({
   wordTimings: z.array(z.number().min(0)).optional(),
 });
 
+export const overlaySchema = z.object({
+  kind: z.enum(["image", "text", "progressBar"]),
+  file: z.string().optional(),
+  text: z.string().optional(),
+  corner: z
+    .enum(["top-left", "top-right", "bottom-left", "bottom-right"])
+    .default("top-right"),
+  edge: z.enum(["top", "bottom"]).default("bottom"),
+  size: z.number().min(0.01).max(1).default(0.12),
+  margin: z.number().min(0).max(0.4).default(0.05),
+  color: z.string().default("#fff"),
+  opacity: z.number().min(0).max(1).default(0.9),
+  fromSeconds: z.number().min(0).optional(),
+  toSeconds: z.number().positive().optional(),
+});
+
 export const recipeSchema = z.object({
   output: z.object({
     width: z.number().int().positive().default(1080),
@@ -103,6 +119,7 @@ export const recipeSchema = z.object({
       durationSeconds: z.number().positive().optional(),
     })
     .optional(),
+  overlays: z.array(overlaySchema).optional(),
   googleFonts: z.array(z.string()).optional(),
   segments: z.array(segmentSchema).min(1),
 });
@@ -119,6 +136,7 @@ export type SceneProps = {
   segment: Segment;
   durationInFrames: number;
 };
+export type Overlay = z.infer<typeof overlaySchema>;
 export type Zoom = z.infer<typeof zoomSchema>;
 export type CaptionOutline = z.infer<typeof captionOutlineSchema>;
 export type VideoTransition = z.infer<typeof videoTransitionSchema>;

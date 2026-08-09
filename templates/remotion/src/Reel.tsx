@@ -15,7 +15,7 @@ import {
 } from "remotion";
 import { getAvailableFonts } from "@remotion/google-fonts";
 import { Fragment, useEffect, useState, type ReactNode } from "react";
-import type { Recipe, Segment, VideoTransition, Zoom } from "./recipeSchema";
+import type { Overlay, Recipe, Segment, VideoTransition, Zoom } from "./recipeSchema";
 import { duckWindow, musicGain } from "./audio";
 import { scenes } from "./scenes";
 
@@ -503,6 +503,83 @@ const SegmentBackground = ({
   return <AbsoluteFill style={wrap}>{inner}</AbsoluteFill>;
 };
 
+// A persistent brand mark: a logo bug, a handle, or a progress bar. Positioned
+// off the frame's own width so the same recipe brands a 1080x1920 reel and a
+// 1080x1080 crop identically.
+const BrandOverlay = ({
+  overlay,
+  durationInFrames,
+}: {
+  overlay: Overlay;
+  durationInFrames: number;
+}) => {
+  const frame = useCurrentFrame();
+  const { width } = useVideoConfig();
+  const inset = overlay.margin * width;
+
+  if (overlay.kind === "progressBar") {
+    const progress = Math.min(1, Math.max(0, frame / Math.max(1, durationInFrames)));
+    return (
+      <AbsoluteFill style={{ pointerEvents: "none" }}>
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            [overlay.edge]: 0,
+            height: `${overlay.size * 100}%`,
+            opacity: overlay.opacity,
+          }}
+        >
+          <div
+            style={{
+              width: `${progress * 100}%`,
+              height: "100%",
+              backgroundColor: overlay.color,
+            }}
+          />
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
+  const [vertical, horizontal] = overlay.corner.split("-") as [
+    "top" | "bottom",
+    "left" | "right",
+  ];
+
+  return (
+    <AbsoluteFill style={{ pointerEvents: "none" }}>
+      <div
+        style={{
+          position: "absolute",
+          [vertical]: inset,
+          [horizontal]: inset,
+          opacity: overlay.opacity,
+        }}
+      >
+        {overlay.kind === "image" && overlay.file ? (
+          <Img src={staticFile(overlay.file)} style={{ width: overlay.size * width }} />
+        ) : (
+          <span
+            style={{
+              color: overlay.color,
+              fontSize: overlay.size * width,
+              fontWeight: 700,
+              fontFamily: "system-ui, -apple-system, Helvetica, Arial, sans-serif",
+              whiteSpace: "nowrap",
+              // Readable over whatever the footage is doing underneath.
+              textShadow: "0 2px 12px rgba(0,0,0,0.55)",
+            }}
+          >
+            {overlay.text}
+          </span>
+        )}
+      </div>
+    </AbsoluteFill>
+  );
+};
+
 // Solid-color flash carrying a dip-to-black/white: fades the color in up to
 // the segment boundary and out again after it, covering footage and captions.
 const DipOverlay = ({
@@ -681,6 +758,22 @@ export const Reel = (recipe: Recipe) => {
               color={transition.kind === "dip-to-black" ? "black" : "white"}
               durationInFrames={dipFrames}
             />
+          </Sequence>
+        );
+      })}
+
+      {/* Brand layer: drawn last so a logo bug or handle sits above everything,
+          including the dip flashes — a watermark that a transition can cover
+          isn't a watermark. */}
+      {(recipe.overlays ?? []).map((overlay, i) => {
+        const from = Math.round((overlay.fromSeconds ?? 0) * fps);
+        const to = Math.round(
+          (overlay.toSeconds ?? recipe.output.durationSeconds) * fps
+        );
+        const frames = Math.max(1, to - from);
+        return (
+          <Sequence key={`overlay-${i}`} from={from} durationInFrames={frames}>
+            <BrandOverlay overlay={overlay} durationInFrames={frames} />
           </Sequence>
         );
       })}

@@ -73,6 +73,7 @@ The server gives the agent the tools to pull that off:
 | Tool | What it does |
 |------|--------------|
 | `list_presets` / `get_preset` | Browse and fetch style presets — shipped built-ins plus your own — a reusable look (caption styles, animations, transitions, zoom, timing) with no content. |
+| `save_brand_kit` / `list_brand_kits` / `apply_brand_kit` | The marks that make a reel **yours**, kept across every reel: logo bug, handle, progress bar, caption type and colors. A preset carries the *look of one reference*; a brand kit carries what shouldn't change when you copy a new reference at all — so the two compose, and you can take anyone's pacing while keeping your face on it. Merging is **additive and idempotent** (applying twice leaves one logo, not two) and never overrules a choice the recipe made on purpose unless you ask. Overlays draw above everything, including transitions, so a dip can't cover your watermark. |
 | `save_preset` | Capture the style of a recipe you nailed (dropping footage, text and music) as a named preset to reapply to future reels. |
 
 Plus two **prompts** that show up as slash commands in Claude Code: `mimic-mcp` (`/mcp__mimic-mcp__mimic-mcp`) walks the agent through the style-copying workflow, and `generate-scratch` (`/mcp__mimic-mcp__generate-scratch`) through the from-scratch one below.

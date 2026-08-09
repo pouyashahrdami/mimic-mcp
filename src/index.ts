@@ -20,6 +20,7 @@ import { critiqueReel } from "./tools/critique-reel.js";
 import { pickCoverFrame } from "./tools/pick-cover-frame.js";
 import { analyzeCreator } from "./tools/analyze-creator.js";
 import { trackSubject } from "./tools/track-subject.js";
+import { applyBrandKitTool, listBrandKits, saveBrandKit } from "./tools/brand-kit.js";
 import { renderReel, renderStill } from "./tools/render-reel.js";
 import { reviewRender } from "./tools/review-render.js";
 import { openInStudio } from "./tools/open-in-studio.js";
@@ -178,6 +179,81 @@ server.registerTool(
           minSilenceSeconds: min_silence_seconds,
         })
       );
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "save_brand_kit",
+  {
+    title: "Save the marks that make a reel yours",
+    description:
+      "Store a reusable brand kit: logo bug, handle, progress bar, caption type and colors. " +
+      "A preset carries the LOOK of one reference (pacing, caption styles, transitions); a " +
+      "brand kit carries what shouldn't change when you copy a new reference at all. They " +
+      "compose — copy anyone's pacing, keep your face on it. Saving the same name again " +
+      "updates the kit, since a brand is one evolving thing rather than a library.",
+    inputSchema: {
+      kit_json: z
+        .string()
+        .describe(
+          'JSON: { name, description, overlays: [{ kind: "image"|"text"|"progressBar", ' +
+            "file?, text?, corner?, edge?, size?, margin?, color?, opacity? }], " +
+            "caption: { captionFont?, captionColor?, captionOutline?, ... }, googleFonts: [] }"
+        ),
+    },
+  },
+  async ({ kit_json }) => {
+    try {
+      return ok(await saveBrandKit(kit_json, workDir));
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "list_brand_kits",
+  {
+    title: "List saved brand kits",
+    description: "Show the brand kits saved in this project, with their descriptions.",
+    inputSchema: {},
+  },
+  async () => {
+    try {
+      return ok(await listBrandKits(workDir));
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "apply_brand_kit",
+  {
+    title: "Stamp a brand kit onto a recipe",
+    description:
+      "Merge a saved brand kit into a recipe: its overlays are added, its caption defaults " +
+      "fill any segment that hasn't chosen its own, and its fonts are loaded. Additive and " +
+      "idempotent — applying twice leaves one logo, not two — and a choice the recipe made " +
+      "on purpose survives unless you pass overwrite. Returns the merged recipe plus exactly " +
+      "what changed.",
+    inputSchema: {
+      recipe_json: z.string().describe("The style recipe as a JSON string"),
+      kit_name: z.string().describe("Name of a saved brand kit"),
+      overwrite: z
+        .boolean()
+        .optional()
+        .describe(
+          "Let the kit replace caption choices the recipe already made. Default false."
+        ),
+    },
+  },
+  async ({ recipe_json, kit_name, overwrite }) => {
+    try {
+      return ok(await applyBrandKitTool(recipe_json, kit_name, workDir, { overwrite }));
     } catch (err) {
       return fail(err);
     }
