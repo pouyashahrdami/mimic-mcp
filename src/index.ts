@@ -15,6 +15,7 @@ import { draftRecipeTool } from "./tools/draft-recipe.js";
 import { scaffoldReel } from "./tools/scaffold-reel.js";
 import { suggestFramingTool } from "./tools/suggest-framing.js";
 import { indexFootage } from "./tools/index-footage.js";
+import { editByTranscript } from "./tools/edit-by-transcript.js";
 import { renderReel, renderStill } from "./tools/render-reel.js";
 import { reviewRender } from "./tools/review-render.js";
 import { openInStudio } from "./tools/open-in-studio.js";
@@ -171,6 +172,66 @@ server.registerTool(
         await trimSilenceTool(video, workDir, {
           thresholdDb: threshold_db,
           minSilenceSeconds: min_silence_seconds,
+        })
+      );
+    } catch (err) {
+      return fail(err);
+    }
+  }
+);
+
+server.registerTool(
+  "edit_by_transcript",
+  {
+    title: "Edit footage by what was said",
+    description:
+      "Cut talking-head footage by its TRANSCRIPT rather than by where it went quiet. " +
+      "Removes the 'um's and 'uh's (they are not words), optionally the crutch words " +
+      "('like', 'basically', 'you know' — off by default, since cutting them changes the " +
+      "sentence), and any phrase you quote, so a flubbed line goes away without you finding " +
+      "its timecode. Returns every cut with what was said there, and captions taken from the " +
+      "real take — already re-timed onto the edited clip, with word timings for karaoke. " +
+      "Run with dry_run first: a cut list is cheaper to read than a re-render is to redo. " +
+      "Needs a local whisper CLI.",
+    inputSchema: {
+      video: z.string().describe("Absolute path to the talking-head footage"),
+      remove_disfluencies: z
+        .boolean()
+        .optional()
+        .describe("Cut 'um'/'uh'/'erm'. Default true."),
+      remove_crutch_words: z
+        .boolean()
+        .optional()
+        .describe(
+          "Also cut 'like', 'basically', 'actually', 'you know'. Default false — these are " +
+            "real words and cutting them changes meaning. Read the cut list afterwards."
+        ),
+      remove_phrases: z
+        .array(z.string())
+        .optional()
+        .describe(
+          "Exact phrases to cut wherever they were said, e.g. a flubbed sentence or a " +
+            "false start. Matched case- and punctuation-insensitively."
+        ),
+      model: z
+        .string()
+        .optional()
+        .describe("Whisper model: tiny/base/small/medium. Default base."),
+      dry_run: z
+        .boolean()
+        .optional()
+        .describe("Plan the cuts and captions without encoding anything. Default false."),
+    },
+  },
+  async ({ video, remove_disfluencies, remove_crutch_words, remove_phrases, model, dry_run }) => {
+    try {
+      return ok(
+        await editByTranscript(video, workDir, {
+          removeDisfluencies: remove_disfluencies,
+          removeCrutchWords: remove_crutch_words,
+          removePhrases: remove_phrases,
+          model,
+          dryRun: dry_run,
         })
       );
     } catch (err) {
