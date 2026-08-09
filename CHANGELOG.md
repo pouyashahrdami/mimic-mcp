@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Scene-cut detection was blind to color.** Frames were decoded to grayscale, so a cut
+  between two shots of equal brightness but different color registered as no change at
+  all — luminance is a convex combination of the channels, and it can collapse a
+  dramatic color change to nothing. The diff now runs per channel and takes the largest,
+  which is always at least the grayscale difference, so it can only add sensitivity. A
+  reference whose cut was missed produced one long shot, which `draft_recipe` then
+  projected into a single segment with no transition; the same reference now yields both
+  shots and the measured dissolve between them. The adaptive median+MAD threshold
+  absorbs the extra chroma noise — a clip that is half per-frame random noise still
+  reports zero cuts.
+
 ## [0.3.0] - 2026-08-08
 
 The measurement release: the analysis the server was already doing now drives the
@@ -149,6 +164,7 @@ self-review loop and everything around it. Published to npm as
 - **vitest** test harness.
 
 [Unreleased]: https://github.com/pouyashahrdami/mimic-mcp/compare/v0.3.0...HEAD
+
 [0.3.0]: https://github.com/pouyashahrdami/mimic-mcp/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/pouyashahrdami/mimic-mcp/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/pouyashahrdami/mimic-mcp/releases/tag/v0.1.0

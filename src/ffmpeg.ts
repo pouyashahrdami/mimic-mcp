@@ -114,16 +114,38 @@ export interface GrayFrames {
   fps: number;
 }
 
+interface DecodeOptions {
+  width: number;
+  height: number;
+  fps: number;
+  start?: number;
+  duration?: number;
+}
+
 /** Decode a stretch of video into tiny grayscale rasters, one per frame. */
-export async function decodeGrayFrames(
+export function decodeGrayFrames(
   videoPath: string,
-  {
-    width,
-    height,
-    fps,
-    start,
-    duration,
-  }: { width: number; height: number; fps: number; start?: number; duration?: number }
+  options: DecodeOptions
+): Promise<GrayFrames> {
+  return decodeFrames(videoPath, options, "gray", 1);
+}
+
+/**
+ * Same, in RGB. Costs 3x the bytes and buys the ability to see a change that
+ * grayscale cannot: two shots of equal brightness but different color.
+ */
+export function decodeColorFrames(
+  videoPath: string,
+  options: DecodeOptions
+): Promise<GrayFrames> {
+  return decodeFrames(videoPath, options, "rgb24", 3);
+}
+
+async function decodeFrames(
+  videoPath: string,
+  { width, height, fps, start, duration }: DecodeOptions,
+  pixelFormat: "gray" | "rgb24",
+  bytesPerPixel: number
 ): Promise<GrayFrames> {
   const args = ["-hide_banner"];
   // Fast seek before -i; fine here because we re-decode from the keyframe.
@@ -131,7 +153,7 @@ export async function decodeGrayFrames(
   args.push("-i", videoPath);
   if (duration !== undefined) args.push("-t", String(duration));
   args.push(
-    "-vf", `fps=${fps},scale=${width}:${height},format=gray`,
+    "-vf", `fps=${fps},scale=${width}:${height},format=${pixelFormat}`,
     "-f", "rawvideo",
     "-"
   );
@@ -144,7 +166,7 @@ export async function decodeGrayFrames(
     throw err;
   });
 
-  const frameBytes = width * height;
+  const frameBytes = width * height * bytesPerPixel;
   const raw = stdout as unknown as Buffer;
   const frames: Uint8Array[] = [];
   for (let off = 0; off + frameBytes <= raw.length; off += frameBytes) {
@@ -174,23 +196,25 @@ export async function decodeShotForMotion(
 }
 
 /**
- * Detect scene changes by decoding EVERY frame to a small grayscale vector
- * and diffing consecutive frames (see frameChangeSamples) — nothing between
+ * Detect scene changes by decoding EVERY frame to a small RGB vector and
+ * diffing consecutive frames (see frameChangeSamples) — nothing between
  * samples can be missed, and swaps animated over a few frames register at
- * full strength. Detections are adaptively thresholded, merged within
- * ~0.15s, and classified cut / fade / overlay from how much of the frame
- * changed and how the change decayed.
+ * full strength. Color matters here: a cut between two shots of equal
+ * brightness is invisible in grayscale, so the diff runs per channel.
+ * Detections are adaptively thresholded, merged within ~0.15s, and classified
+ * cut / fade / overlay from how much of the frame changed and how the change
+ * decayed.
  */
 export async function detectSceneCuts(videoPath: string): Promise<SceneCut[]> {
   const info = await probe(videoPath);
   const fps = Math.min(info.fps || MAX_ANALYSIS_FPS, MAX_ANALYSIS_FPS);
-  const { frames } = await decodeGrayFrames(videoPath, {
+  const { frames } = await decodeColorFrames(videoPath, {
     width: ANALYSIS_WIDTH,
     height: ANALYSIS_HEIGHT,
     fps,
   });
   return pickSceneCuts(
-    frameChangeSamples(frames, ANALYSIS_WIDTH, ANALYSIS_HEIGHT, fps)
+    frameChangeSamples(frames, ANALYSIS_WIDTH, ANALYSIS_HEIGHT, fps, { channels: 3 })
   );
 }
 
