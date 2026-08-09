@@ -195,6 +195,40 @@ describe("draftRecipe", () => {
     expect(notes.join(" ")).toMatch(/Segments 0 pan in the reference/);
   });
 
+  it("aims the crop and the punch-in at the measured subject", () => {
+    const { recipe, notes } = draftRecipe(
+      spec({
+        shots: [
+          { start: 0, end: 3, motion: { type: "zoom", scaleTo: 1.2, panX: 0, panY: 0, easing: "easeOut" } },
+          { start: 3, end: 6, motion: null },
+        ],
+      }),
+      {
+        script: ["a", "b"],
+        footageVideo: "/tmp/f.mov",
+        footageDurationSeconds: 30,
+        framings: [
+          { focusX: 0.24, focusY: 0.35, backgroundPosition: "24% 35%" },
+          { focusX: 0.5, focusY: 0.5, backgroundPosition: null },
+        ],
+      }
+    );
+    expect(recipe.segments[0].backgroundPosition).toBe("24% 35%");
+    expect(recipe.segments[0].zoom).toMatchObject({ focusX: 0.24, focusY: 0.35 });
+    // No confident measurement: leave it centred rather than aim at noise.
+    expect(recipe.segments[1].backgroundPosition).toBeUndefined();
+    expect(notes.join(" ")).toMatch(/1 segment\(s\) aimed at the subject/);
+  });
+
+  it("ignores framings when the reel has no footage to aim", () => {
+    const { recipe } = draftRecipe(spec(), {
+      script: ["a"],
+      backgroundFill: "#000",
+      framings: [{ focusX: 0.2, focusY: 0.2, backgroundPosition: "20% 20%" }],
+    });
+    expect(recipe.segments[0].backgroundPosition).toBeUndefined();
+  });
+
   it("falls back to a dark canvas when there is no footage and no fill", () => {
     const { recipe, notes } = draftRecipe(spec(), { script: ["a", "b", "c"] });
     expect(recipe.background.video).toBeUndefined();

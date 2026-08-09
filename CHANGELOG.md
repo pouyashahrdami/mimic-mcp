@@ -67,7 +67,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   toward it instead of the frame's middle. Motion is the cue where the shot has any;
   a locked-off shot falls back to edge detail, which a textured background can dominate,
   so those spans are flagged. Below a confidence floor it returns no position rather
-  than a guess.
+  than a guess. `draft_recipe` runs the same measurement over the footage per segment,
+  so a drafted reel arrives with its crops and punch-ins already aimed; segments running
+  past the end of shorter footage are simply left centred. Opt out with
+  `measure_framing: false`.
 
 ### Fixed
 

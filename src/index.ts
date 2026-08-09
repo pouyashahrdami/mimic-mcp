@@ -247,10 +247,28 @@ server.registerTool(
         .boolean()
         .optional()
         .describe("Nudge segment boundaries onto the measured beats. Default true."),
+      measure_framing: z
+        .boolean()
+        .optional()
+        .describe(
+          "Measure the footage per segment and aim each backgroundPosition and zoom " +
+            "focus at the subject rather than the middle of the frame. Default true " +
+            "when footage is given; costs one extra decode pass over the clip."
+        ),
       out: z.string().optional().describe("Where to write recipe.json. Default <cwd>/recipe.json"),
     },
   },
-  async ({ script, style_spec, reference, footage, background_fill, music, snap_to_beats, out }) => {
+  async ({
+    script,
+    style_spec,
+    reference,
+    footage,
+    background_fill,
+    music,
+    snap_to_beats,
+    measure_framing,
+    out,
+  }) => {
     try {
       return ok(
         await draftRecipeTool(
@@ -262,6 +280,7 @@ server.registerTool(
             backgroundFill: background_fill,
             music,
             snapToBeats: snap_to_beats,
+            measureFraming: measure_framing,
             out,
           },
           workDir

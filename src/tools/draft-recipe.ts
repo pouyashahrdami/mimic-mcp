@@ -4,6 +4,10 @@ import { draftRecipe, type DraftOptions } from "../draft-recipe.js";
 import { probe } from "../ffmpeg.js";
 import type { StyleSpec } from "../style-spec.js";
 import { analyzeReference } from "./analyze-reference.js";
+import { measureFramingSpans } from "./suggest-framing.js";
+
+/** Shorter than this and there aren't enough frames to locate anything. */
+const MIN_FRAMING_SPAN_SECONDS = 0.3;
 
 export interface DraftRecipeInput {
   /** Path to a style-spec.json from analyze_reference. */
@@ -16,6 +20,8 @@ export interface DraftRecipeInput {
   backgroundFill?: string;
   music?: string;
   snapToBeats?: boolean;
+  /** Measure the footage and aim each crop/punch-in at the subject. Default true. */
+  measureFraming?: boolean;
   /** Where to write the drafted recipe. Defaults to <workDir>/recipe.json. */
   out?: string;
 }
@@ -62,6 +68,30 @@ export async function draftRecipeTool(
   };
   if (input.footage) {
     options.footageDurationSeconds = (await probe(input.footage)).durationSeconds;
+  }
+
+  // Aim each segment's crop and punch-in at the subject. Measured against the
+  // shot boundaries the projection is about to use, so the spans line up.
+  if (input.footage && input.measureFraming !== false) {
+    const footageEnd = options.footageDurationSeconds ?? Infinity;
+    const spans = draftRecipe(spec, options).recipe.segments.map((segment) => ({
+      start: segment.start,
+      end: Math.min(segment.end, footageEnd),
+    }));
+
+    // Footage shorter than the reference is normal, so segments that run past
+    // the end of the clip simply go unaimed instead of disabling the whole pass.
+    const measurable = spans.flatMap((span, i) =>
+      span.end - span.start >= MIN_FRAMING_SPAN_SECONDS ? [{ span, i }] : []
+    );
+    if (measurable.length > 0) {
+      const measured = await measureFramingSpans(
+        input.footage,
+        measurable.map((m) => m.span)
+      );
+      const byIndex = new Map(measurable.map((m, n) => [m.i, measured[n]]));
+      options.framings = spans.map((_, i) => byIndex.get(i) ?? null);
+    }
   }
 
   const { recipe, notes } = draftRecipe(spec, options);

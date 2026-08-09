@@ -32,8 +32,10 @@ Work through these steps in order:
    caption lines, the user's footage, and the extracted music. It projects the
    MEASUREMENT into a first-pass recipe — one segment per shot, transition kinds and
    durations copied verbatim, in-shot zoom with its fitted easing, caption band/size/
-   style from the OCR track, boundaries snapped to the beat grid. Do NOT hand-author
-   timing; that is exactly what this tool exists to stop you doing.
+   style from the OCR track, boundaries snapped to the beat grid. It also measures YOUR
+   footage per segment so cover-crops and punch-ins aim at the subject instead of the
+   middle of the frame. Do NOT hand-author timing; that is exactly what this tool
+   exists to stop you doing.
 
 5. Edit the draft — it wrote a recipe.json you can read and rewrite. Work through its
    \`notes\` first (they list what it deliberately left to you), then the judgment calls

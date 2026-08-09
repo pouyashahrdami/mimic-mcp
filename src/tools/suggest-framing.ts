@@ -20,14 +20,13 @@ export interface FramingSuggestion extends Framing {
 }
 
 /**
- * Measure where the subject sits, per span of footage, so cover-cropping and
- * punch-ins can aim at it. Without this both default to the middle of the
- * frame, which throws away the subject on any shot that isn't centred.
+ * Measure each span's framing. Shared by the tool and by draft_recipe, so a
+ * drafted reel arrives already aimed at the subject.
  */
-export async function suggestFramingTool(
+export async function measureFramingSpans(
   video: string,
   spans?: { start: number; end: number }[]
-): Promise<{ suggestions: FramingSuggestion[]; instructions: string }> {
+): Promise<FramingSuggestion[]> {
   const info = await probe(video);
   const ranges =
     spans && spans.length > 0 ? spans : [{ start: 0, end: info.videoSeconds }];
@@ -44,7 +43,7 @@ export async function suggestFramingTool(
     }
   }
 
-  const suggestions = await mapLimit(ranges, 3, async (span) => {
+  return mapLimit(ranges, 3, async (span) => {
     const { frames } = await decodeGrayFrames(video, {
       width: ANALYSIS_WIDTH,
       height: ANALYSIS_HEIGHT,
@@ -60,6 +59,18 @@ export async function suggestFramingTool(
       backgroundPosition: toBackgroundPosition(framing),
     } satisfies FramingSuggestion;
   });
+}
+
+/**
+ * Measure where the subject sits, per span of footage, so cover-cropping and
+ * punch-ins can aim at it. Without this both default to the middle of the
+ * frame, which throws away the subject on any shot that isn't centred.
+ */
+export async function suggestFramingTool(
+  video: string,
+  spans?: { start: number; end: number }[]
+): Promise<{ suggestions: FramingSuggestion[]; instructions: string }> {
+  const suggestions = await measureFramingSpans(video, spans);
 
   const weak = suggestions.filter((s) => s.backgroundPosition === null).length;
   const detailOnly = suggestions.filter((s) => s.basis === "detail").length;

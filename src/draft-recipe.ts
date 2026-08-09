@@ -27,6 +27,19 @@ export interface DraftOptions {
   snapToBeats?: boolean;
   /** How far a boundary may move to reach a beat. Default 0.12s. */
   beatToleranceSeconds?: number;
+  /**
+   * Where the subject sits in the FOOTAGE over each segment's span, measured by
+   * suggest_framing and index-aligned to the shots. Aims cover-crops and
+   * punch-ins at the subject instead of the middle of the frame.
+   */
+  framings?: (SegmentFraming | null)[];
+}
+
+export interface SegmentFraming {
+  focusX: number;
+  focusY: number;
+  /** CSS object-position, or null when the measurement was too weak to use. */
+  backgroundPosition: string | null;
 }
 
 export interface DraftResult {
@@ -172,6 +185,8 @@ export function draftRecipe(spec: StyleSpec, options: DraftOptions): DraftResult
     const event = events[i];
     const transition = i > 0 ? transitionAt(spec, bounds[i]) : null;
     const motion = shot.motion;
+    // Only footage segments get aimed; a fill or scene has no subject to find.
+    const framing = options.footageVideo ? (options.framings?.[i] ?? null) : null;
 
     if (motion && (motion.type === "pan" || motion.type === "zoom+pan")) pans.push(i);
 
@@ -187,6 +202,9 @@ export function draftRecipe(spec: StyleSpec, options: DraftOptions): DraftResult
           }
         : {}),
       ...(perSegmentFootage ? { backgroundStart: start } : {}),
+      ...(framing?.backgroundPosition
+        ? { backgroundPosition: framing.backgroundPosition }
+        : {}),
       ...(transition && transition.kind !== "cut"
         ? {
             videoTransitionIn: {
@@ -202,6 +220,8 @@ export function draftRecipe(spec: StyleSpec, options: DraftOptions): DraftResult
               from: 1,
               to: round2(motion.scaleTo),
               ...(motion.easing ? { easing: motion.easing } : {}),
+              // Punch in toward the subject, not the middle of the frame.
+              ...(framing ? { focusX: framing.focusX, focusY: framing.focusY } : {}),
             },
           }
         : {}),
@@ -234,6 +254,16 @@ export function draftRecipe(spec: StyleSpec, options: DraftOptions): DraftResult
     notes.push(
       `Segments ${pans.join(", ")} pan in the reference; the recipe only expresses zoom. ` +
         "Approximate with zoom focusX/focusY, or leave them static."
+    );
+  }
+  if (options.framings && options.footageVideo) {
+    const aimed = segments.filter((s) => "backgroundPosition" in s).length;
+    const unaimed = segments.length - aimed;
+    notes.push(
+      `Framing measured from your footage: ${aimed} segment(s) aimed at the subject` +
+        (unaimed > 0
+          ? `, ${unaimed} left centred because no clear subject was found.`
+          : ".")
     );
   }
   if (!perSegmentFootage && segments.some((s) => "videoTransitionIn" in s)) {
